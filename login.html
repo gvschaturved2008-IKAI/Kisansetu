@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KisanSetu | Farmer Login & Registration Portal</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-body">
+
+    <!-- Top Gov Banner -->
+    <div class="gov-topbar">
+        <div class="gov-container">
+            <div class="gov-left">
+                <span class="gov-emblem"><i class="fa-solid fa-landmark-dome"></i></span>
+                <span>Government of India | Ministry of Consumer Affairs, Food & Public Distribution (DoCA)</span>
+            </div>
+            <div class="gov-right">
+                <div class="lang-dropdown">
+                    <button class="login-lang-btn" id="loginLangBtn" type="button">
+                        <i class="fa-solid fa-language"></i>
+                        <span id="currentLoginLang">English</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                    <div class="lang-menu" id="loginLangMenu">
+                        <button type="button" data-lang="English"><span>A</span> English</button>
+                        <button type="button" data-lang="Hindi"><span>अ</span> हिन्दी (Hindi)</button>
+                        <button type="button" data-lang="Telugu"><span>అ</span> తెలుగు (Telugu)</button>
+                        <button type="button" data-lang="Tamil"><span>த</span> தமிழ் (Tamil)</button>
+                        <button type="button" data-lang="Kannada"><span>ಕ</span> ಕನ್ನಡ (Kannada)</button>
+                        <button type="button" data-lang="Malayalam"><span>മ</span> മലയാളം (Malayalam)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Main Container -->
+    <div class="login-container">
+        <!-- Left Side: Visual Hero & Problem Statement Highlights -->
+        <div class="login-hero">
+            <div class="hero-overlay">
+                <div class="hero-brand">
+                    <div class="hero-logo-icon">
+                        <i class="fa-solid fa-wheat-awn"></i>
+                    </div>
+                    <div>
+                        <h1>KisanSetu</h1>
+                        <p class="hero-tagline" data-lang-key="portalTagline">Unified Farmer Procurement & Queue Management Portal</p>
+                    </div>
+                </div>
+
+                <div class="hero-highlights">
+                    <div class="highlight-item">
+                        <div class="h-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        <div>
+                            <strong data-lang-key="h1Title">Zero Waiting Time</strong>
+                            <p data-lang-key="h1Desc">Pre-book your mandi procurement slot & track live queue token from your mobile phone.</p>
+                        </div>
+                    </div>
+                    <div class="highlight-item">
+                        <div class="h-icon"><i class="fa-solid fa-building-columns"></i></div>
+                        <div>
+                            <strong data-lang-key="h2Title">Transparent DBT Payments</strong>
+                            <p data-lang-key="h2Desc">Guaranteed MSP rates with direct bank transfers and real-time payment stage tracking.</p>
+                        </div>
+                    </div>
+                    <div class="highlight-item">
+                        <div class="h-icon"><i class="fa-solid fa-comments"></i></div>
+                        <div>
+                            <strong data-lang-key="h3Title">Instant SMS & Voice Alerts</strong>
+                            <p data-lang-key="h3Desc">Get automated slot confirmations, gate arrival passes, and turn alerts in your local language.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-stats">
+                    <div class="h-stat">
+                        <strong>1.2M+</strong>
+                        <span data-lang-key="statFarmers">Farmers Registered</span>
+                    </div>
+                    <div class="h-stat">
+                        <strong>850+</strong>
+                        <span data-lang-key="statCentres">Procurement Centres</span>
+                    </div>
+                    <div class="h-stat">
+                        <strong>98.4%</strong>
+                        <span data-lang-key="statOnTime">On-Time Procurement</span>
+                    </div>
+                </div>
+
+                <div class="hero-footer-note">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>National Food Security Mission • Secured with Aadhaar OTP</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Interactive Login / Register Form -->
+        <div class="login-card-wrapper">
+            <div class="login-card">
+                
+                <div class="card-header-area">
+                    <div class="mobile-logo-show">
+                        <i class="fa-solid fa-wheat-awn"></i>
+                        <span>KisanSetu</span>
+                    </div>
+                    <h2 id="formTitle" data-lang-key="welcomeBack">Welcome to KisanSetu</h2>
+                    <p id="formSubtitle" data-lang-key="portalSub">Sign in to manage your procurement slots & payment status</p>
+                </div>
+
+                <!-- Tabs: Login vs Register -->
+                <div class="auth-tabs">
+                    <button type="button" class="auth-tab active" id="tabSignIn" onclick="switchAuthTab('signin')">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                        <span data-lang-key="signInTab">Farmer Sign In</span>
+                    </button>
+                    <button type="button" class="auth-tab" id="tabSignUp" onclick="switchAuthTab('signup')">
+                        <i class="fa-solid fa-user-plus"></i>
+                        <span data-lang-key="registerTab">New Registration</span>
+                    </button>
+                </div>
+
+                <!-- Quick Hackathon Demo Logins -->
+                <div class="demo-login-box">
+                    <div class="demo-header">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span data-lang-key="quickDemo">Quick Demo Logins (Hackathon Evaluator)</span>
+                    </div>
+                    <div class="demo-buttons">
+                        <button type="button" class="demo-btn farmer-demo" onclick="demoLogin('farmer')">
+                            <i class="fa-solid fa-user-tag"></i>
+                            <span>Ramesh Kumar (Farmer)</span>
+                        </button>
+                        <button type="button" class="demo-btn officer-demo" onclick="demoLogin('officer')">
+                            <i class="fa-solid fa-user-shield"></i>
+                            <span>S. Sharma (Mandi Officer)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SIGN IN FORM -->
+                <form id="signInForm" onsubmit="handleSignIn(event)">
+                    
+                    <!-- ROLE SELECTION TABS -->
+                    <div class="login-role-tabs">
+                        <button type="button" class="role-tab-btn active" id="roleTabFarmer" onclick="selectLoginRole('farmer')">
+                            <i class="fa-solid fa-wheat-awn"></i>
+                            <span>Farmer Login</span>
+                        </button>
+                        <button type="button" class="role-tab-btn" id="roleTabOfficer" onclick="selectLoginRole('officer')">
+                            <i class="fa-solid fa-building-columns"></i>
+                            <span>Mandi Officer</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="loginRole" value="farmer">
+
+                    <!-- Login Method Selector (OTP vs Password) -->
+                    <div class="login-method-toggle">
+                        <label class="radio-label">
+                            <input type="radio" name="loginMethod" value="otp" checked onchange="toggleLoginMethod('otp')">
+                            <span data-lang-key="loginWithOtp">Mobile OTP</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="loginMethod" value="password" onchange="toggleLoginMethod('password')">
+                            <span data-lang-key="loginWithPass">Password / PIN</span>
+                        </label>
+                    </div>
+
+                    <!-- Identifier Input (Mobile or Farmer ID) -->
+                    <div class="form-group">
+                        <label for="loginIdentifier">
+                            <i class="fa-solid fa-mobile-screen"></i>
+                            <span id="identifierLabelText" data-lang-key="mobileOrFarmerId">Mobile Number / Aadhaar / Farmer ID</span>
+                        </label>
+                        <div class="input-with-icon">
+                            <input type="text" id="loginIdentifier" placeholder="e.g. 9876543210 or KS102458" value="9876543210" required>
+                            <span class="input-icon-right"><i class="fa-solid fa-id-card"></i></span>
+                        </div>
+                    </div>
+
+                    <!-- OTP Input Container (Shown when method is OTP) -->
+                    <div id="otpSection" class="auth-section-group">
+                        <div class="form-group">
+                            <div class="label-with-action">
+                                <label for="loginOtp">
+                                    <i class="fa-solid fa-key"></i>
+                                    <span data-lang-key="enterOtp">Enter 6-Digit OTP</span>
+                                </label>
+                                <button type="button" class="text-btn" id="getOtpBtn" onclick="requestOtp()">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                    <span data-lang-key="getOtp">Get OTP</span>
+                                </button>
+                            </div>
+                            <div class="input-with-icon">
+                                <input type="text" id="loginOtp" placeholder="Enter 6-digit OTP (e.g. 482910)" maxlength="6" value="482910">
+                                <span class="input-icon-right"><i class="fa-solid fa-shield-check"></i></span>
+                            </div>
+                            <div class="otp-hint" id="otpHint">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span>Demo OTP <strong>482910</strong> is pre-filled for testing. Click "Sign In" below.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Password Input Container (Hidden by default) -->
+                    <div id="passwordSection" class="auth-section-group" style="display:none;">
+                        <div class="form-group">
+                            <label for="loginPassword">
+                                <i class="fa-solid fa-lock"></i>
+                                <span data-lang-key="password">Password / Security PIN</span>
+                            </label>
+                            <div class="input-with-icon">
+                                <input type="password" id="loginPassword" placeholder="Enter your 4 or 6 digit PIN" value="123456">
+                                <button type="button" class="input-eye-btn" onclick="togglePasswordVisibility('loginPassword')">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="rememberMe" checked>
+                            <span data-lang-key="rememberMe">Keep me logged in on this device</span>
+                        </label>
+                        <a href="javascript:void(0)" onclick="forgotPinAlert()" class="forgot-link" data-lang-key="troubleSigningIn">Trouble signing in?</a>
+                    </div>
+
+                    <button type="submit" class="submit-auth-btn" id="signInSubmitBtn">
+                        <i class="fa-solid fa-right-to-bracket"></i>
+                        <span data-lang-key="signInBtn">Sign In to KisanSetu</span>
+                    </button>
+
+                </form>
+
+                <!-- NEW FARMER REGISTRATION FORM -->
+                <form id="signUpForm" onsubmit="handleSignUp(event)" style="display: none;">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="regName">
+                                <i class="fa-solid fa-user"></i>
+                                <span data-lang-key="fullName">Farmer Full Name *</span>
+                            </label>
+                            <input type="text" id="regName" placeholder="e.g. Ramesh Kumar" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="regMobile">
+                                <i class="fa-solid fa-phone"></i>
+                                <span data-lang-key="mobileNumber">Mobile Number *</span>
+                            </label>
+                            <input type="tel" id="regMobile" placeholder="10-digit mobile number" maxlength="10" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="regAadhaar">
+                                <i class="fa-solid fa-id-card"></i>
+                                <span data-lang-key="aadhaarNumber">Aadhaar / Farmer ID *</span>
+                            </label>
+                            <input type="text" id="regAadhaar" placeholder="12-digit Aadhaar number" maxlength="12" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="regLand">
+                                <i class="fa-solid fa-map-location-dot"></i>
+                                <span data-lang-key="landHolding">Land Area (Acres)</span>
+                            </label>
+                            <input type="number" id="regLand" placeholder="e.g. 5.5" step="0.1" min="0.1" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="regState">
+                                <i class="fa-solid fa-landmark"></i>
+                                <span data-lang-key="state">State *</span>
+                            </label>
+                            <select id="regState" class="custom-select" required>
+                                <option value="Andhra Pradesh" selected>Andhra Pradesh</option>
+                                <option value="Telangana">Telangana</option>
+                                <option value="Punjab">Punjab</option>
+                                <option value="Haryana">Haryana</option>
+                                <option value="Madhya Pradesh">Madhya Pradesh</option>
+                                <option value="Uttar Pradesh">Uttar Pradesh</option>
+                                <option value="Tamil Nadu">Tamil Nadu</option>
+                                <option value="Karnataka">Karnataka</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="regDistrict">
+                                <i class="fa-solid fa-city"></i>
+                                <span data-lang-key="district">District / Mandal *</span>
+                            </label>
+                            <input type="text" id="regDistrict" placeholder="e.g. Guntur / Krishna" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="regCrop">
+                                <i class="fa-solid fa-wheat-awn"></i>
+                                <span data-lang-key="primaryCrop">Primary Crop for Sale</span>
+                            </label>
+                            <select id="regCrop" class="custom-select">
+                                <option value="Paddy / Rice" selected>Paddy / Rice (धान)</option>
+                                <option value="Wheat">Wheat (गेहूं)</option>
+                                <option value="Cotton">Cotton (कपास)</option>
+                                <option value="Maize">Maize (मक्का)</option>
+                                <option value="Mustard / Pulses">Mustard / Pulses (सरसों / दालें)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="regMandi">
+                                <i class="fa-solid fa-building"></i>
+                                <span data-lang-key="prefCentre">Nearest Mandi / Centre</span>
+                            </label>
+                            <select id="regMandi" class="custom-select">
+                                <option value="AP State Procurement Centre" selected>AP State Procurement Centre (Yard 1)</option>
+                                <option value="Main Agricultural Market">Main Agricultural Market Centre</option>
+                                <option value="District Food Grain Centre">District Food Grain Hub</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="regAgree" checked required>
+                            <span data-lang-key="termsAgreement">I agree to link my Aadhaar for DBT direct subsidy & MSP procurement payments under DoCA guidelines.</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="submit-auth-btn register-btn">
+                        <i class="fa-solid fa-user-plus"></i>
+                        <span data-lang-key="registerFarmerBtn">Complete Farmer Registration</span>
+                    </button>
+
+                </form>
+
+                <div class="login-footer-links">
+                    <a href="index.html" class="guest-link">
+                        <i class="fa-solid fa-arrow-right"></i>
+                        <span data-lang-key="guestExplore">Explore Portal in Guest Mode</span>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulated SMS OTP Modal -->
+    <div id="simulatedSmsModal" class="sms-modal-backdrop" style="display:none;">
+        <div class="sms-phone-card">
+            <div class="sms-phone-speaker"></div>
+            <div class="sms-phone-screen">
+                <div class="sms-header">
+                    <i class="fa-solid fa-message"></i>
+                    <span>Gov-KISAN SMS Notification</span>
+                    <button type="button" onclick="closeSmsModal()" class="sms-close"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="sms-bubble">
+                    <p><strong>GOV-KISANSETU ALERT:</strong></p>
+                    <p>Your One-Time-Password (OTP) for KisanSetu Farmer Portal login is: <span class="sms-code-highlight" id="simulatedOtpCode">482910</span>.</p>
+                    <p class="sms-subtext">Valid for 10 mins. Do not share with anyone. - Dept of Consumer Affairs</p>
+                </div>
+                <button type="button" class="sms-autofill-btn" onclick="autofillSimulatedOtp()">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Auto-Fill OTP & Verify</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Logic Script -->
+    <script>
+        // Language Dictionary for Login
+        const loginTranslations = {
+            English: {
+                portalTagline: "Unified Farmer Procurement & Queue Management Portal",
+                welcomeBack: "Welcome to KisanSetu",
+                portalSub: "Sign in to manage your procurement slots & payment status",
+                signInTab: "Farmer Sign In",
+                registerTab: "New Registration",
+                quickDemo: "Quick Demo Logins (Hackathon Evaluator)",
+                loginWithOtp: "Mobile OTP",
+                loginWithPass: "Password / PIN",
+                mobileOrFarmerId: "Mobile Number / Aadhaar / Farmer ID",
+                enterOtp: "Enter 6-Digit OTP",
+                getOtp: "Get OTP",
+                password: "Password / Security PIN",
+                portalRole: "Portal Access Role",
+                rememberMe: "Keep me logged in on this device",
+                troubleSigningIn: "Trouble signing in?",
+                signInBtn: "Sign In to KisanSetu",
+                fullName: "Farmer Full Name *",
+                mobileNumber: "Mobile Number *",
+                aadhaarNumber: "Aadhaar / Farmer ID *",
+                landHolding: "Land Area (Acres)",
+                state: "State *",
+                district: "District / Mandal *",
+                primaryCrop: "Primary Crop for Sale",
+                prefCentre: "Nearest Mandi / Centre",
+                termsAgreement: "I agree to link my Aadhaar for DBT direct subsidy & MSP procurement payments.",
+                registerFarmerBtn: "Complete Farmer Registration",
+                guestExplore: "Explore Portal in Guest Mode",
+                h1Title: "Zero Waiting Time",
+                h1Desc: "Pre-book your mandi procurement slot & track live queue token from your mobile phone.",
+                h2Title: "Transparent DBT Payments",
+                h2Desc: "Guaranteed MSP rates with direct bank transfers and real-time payment stage tracking.",
+                h3Title: "Instant SMS & Voice Alerts",
+                h3Desc: "Get automated slot confirmations, gate arrival passes, and turn alerts in your local language."
+            },
+            Hindi: {
+                portalTagline: "एकीकृत किसान खरीद एवं कतार प्रबंधन पोर्टल",
+                welcomeBack: "किसान सेतु में आपका स्वागत है",
+                portalSub: "अपने खरीद स्लॉट और भुगतान स्थिति का प्रबंधन करने के लिए साइन इन करें",
+                signInTab: "किसान साइन इन",
+                registerTab: "नया पंजीकरण",
+                quickDemo: "त्वरित डेमो लॉगिन (मूल्यांकनकर्ता)",
+                loginWithOtp: "मोबाइल ओटीपी",
+                loginWithPass: "पासवर्ड / पिन",
+                mobileOrFarmerId: "मोबाइल नंबर / आधार / किसान आईडी",
+                enterOtp: "6-अंकों का ओटीपी दर्ज करें",
+                getOtp: "ओटीपी प्राप्त करें",
+                password: "पासवर्ड / सुरक्षा पिन",
+                portalRole: "पोर्टल एक्सेस भूमिका",
+                rememberMe: "मुझे इस डिवाइस पर लॉग इन रखें",
+                troubleSigningIn: "साइन इन करने में समस्या?",
+                signInBtn: "किसान सेतु में साइन इन करें",
+                fullName: "किसान का पूरा नाम *",
+                mobileNumber: "मोबाइल नंबर *",
+                aadhaarNumber: "आधार / किसान आईडी *",
+                landHolding: "भूमि क्षेत्र (एकड़)",
+                state: "राज्य *",
+                district: "जिला / मंडल *",
+                primaryCrop: "बिक्री के लिए मुख्य फसल",
+                prefCentre: "निकटतम मंडी / खरीद केंद्र",
+                termsAgreement: "मैं डीबीटी प्रत्यक्ष सब्सिडी एवं एमएसपी भुगतान हेतु अपना आधार लिंक करने के लिए सहमत हूँ।",
+                registerFarmerBtn: "किसान पंजीकरण पूरा करें",
+                guestExplore: "गेस्ट मोड में पोर्टल देखें",
+                h1Title: "शून्य प्रतीक्षा समय",
+                h1Desc: "मंडी स्लॉट पहले से बुक करें और मोबाइल से लाइव कतार ट्रैक करें।",
+                h2Title: "पारदर्शी डीबीटी भुगतान",
+                h2Desc: "सीधे बैंक खाते में गारंटीड एमएसपी दरें और रियल-टाइम स्थिति ट्रैकिंग।",
+                h3Title: "त्वरित एसएमएस एवं वॉइस अलर्ट",
+                h3Desc: "अपनी स्थानीय भाषा में स्वचालित स्लॉट पुष्टि एवं कतार अलर्ट प्राप्त करें।"
+            },
+            Telugu: {
+                portalTagline: "సమీకృత రైతు సేకరణ మరియు క్యూ నిర్వహణ పోర్టల్",
+                welcomeBack: "కిసాన్ సేతుకి స్వాగతం",
+                portalSub: "మీ సేకరణ స్లాట్‌లు మరియు చెల్లింపు స్థితిని నిర్వహించడానికి లాగిన్ చేయండి",
+                signInTab: "రైతు లాగిన్",
+                registerTab: "కొత్త రిజిస్ట్రేషన్",
+                quickDemo: "త్వరిత డెమో లాగిన్ (హాకథాన్)",
+                loginWithOtp: "మొబైల్ ఓటీపీ",
+                loginWithPass: "పాస్‌వర్డ్ / పిన్",
+                mobileOrFarmerId: "మొబైల్ నంబర్ / ఆధార్ / రైతు ID",
+                enterOtp: "6-అంకెల ఓటీపీ నమోదు చేయండి",
+                getOtp: "ఓటీపీ పొందండి",
+                password: "పాస్‌వర్డ్ / పిన్",
+                portalRole: "పోర్టల్ యాక్సెస్ పాత్ర",
+                rememberMe: "నన్ను లాగిన్ చేసి ఉంచండి",
+                troubleSigningIn: "సమస్య ఉందా?",
+                signInBtn: "కిసాన్ సేతులోకి ప్రవేశించండి",
+                fullName: "రైతు పూర్తి పేరు *",
+                mobileNumber: "మొబైల్ నంబర్ *",
+                aadhaarNumber: "ఆధార్ నంబర్ *",
+                landHolding: "భూమి విస్తీర్ణం (ఎకరాలు)",
+                state: "రాష్ట్రం *",
+                district: "జిల్లా / మండలం *",
+                primaryCrop: "ప్రధాన పంట",
+                prefCentre: "సమీప సేకరణ కేంద్రం",
+                termsAgreement: "DBT చెల్లింపుల కోసం ఆధార్ అనుసంధానానికి అంగీకరిస్తున్నాను.",
+                registerFarmerBtn: "రైతు రిజిస్ట్రేషన్ పూర్తి చేయండి",
+                guestExplore: "గెస్ట్ మోడ్‌లో చూడండి",
+                h1Title: "వేచి ఉండే సమయం లేదు",
+                h1Desc: "ముందుగానే స్లాట్ బుక్ చేసుకోండి మరియు లైవ్ క్యూ స్థితిని తెలుసుకోండి.",
+                h2Title: "పారదర్శక DBT చెల్లింపులు",
+                h2Desc: "నేరుగా బ్యాంక్ ఖాతాలో కనీస మద్దతు ధర (MSP) జమ అవుతుంది.",
+                h3Title: "తక్షణ SMS హెచ్చరికలు",
+                h3Desc: "తెలుగులో ఆటోమేటిక్ స్లాట్ ధృవీకరణ మరియు క్యూ సమాచారం పొందండి."
+            },
+            Tamil: {
+                portalTagline: "ஒருங்கிணைந்த உழவர் கொள்முதல் மற்றும் வரிசை மேலாண்மை போர்டல்",
+                welcomeBack: "கிசான் சேதுவிற்கு வரவேற்கிறோம்",
+                portalSub: "உங்கள் கொள்முதல் முன்பதிவு மற்றும் கொடுப்பனவு நிலையை நிர்வகிக்க உள்நுழையவும்",
+                signInTab: "உழவர் உள்நுழைவு",
+                registerTab: "புதிய பதிவு",
+                quickDemo: "விரைவு டெமோ உள்நுழைவு",
+                loginWithOtp: "மொபைல் OTP",
+                loginWithPass: "கடவுச்சொல்",
+                mobileOrFarmerId: "மொபைல் எண் / ஆதார் / உழவர் ஐடி",
+                enterOtp: "6-இலக்க OTP உள்ளிடவும்",
+                getOtp: "OTP பெறுக",
+                password: "கடவுச்சொல்",
+                portalRole: "அணுகல் பங்கு",
+                rememberMe: "என்னை நினைவில் கொள்க",
+                troubleSigningIn: "சிக்கல் உள்ளதா?",
+                signInBtn: "கிசான் சேதுவில் உள்நுழைக",
+                fullName: "உழவர் பெயர் *",
+                mobileNumber: "மொபைல் எண் *",
+                aadhaarNumber: "ஆதார் எண் *",
+                landHolding: "நில அளவு (ஏக்கர்)",
+                state: "மாநிலம் *",
+                district: "மாவட்டம் *",
+                primaryCrop: "முக்கிய பயிர்",
+                prefCentre: "அருகிலுள்ள கொள்முதல் மையம்",
+                termsAgreement: "DBT நேரடி பரிமாற்றத்திற்கான விதிமுறைகளை ஏற்கிறேன்.",
+                registerFarmerBtn: "பதிவை முடிக்கவும்",
+                guestExplore: "விருந்தினராக தொடரவும்",
+                h1Title: "காத்திருக்கும் நேரமில்லை",
+                h1Desc: "முன்கூட்டியே முன்பதிவு செய்து நேரடி வரிசையை கண்காணிக்கவும்.",
+                h2Title: "நேரடி வங்கி பரிமாற்றம்",
+                h2Desc: "நேரடியாக வங்கிக் கணக்கில் குறைந்தபட்ச ஆதரவு விலை வரவு வைக்கப்படும்.",
+                h3Title: "உடனடி SMS அறிவிப்புகள்",
+                h3Desc: "உங்கள் தாய்மொழியில் உடனடி அறிவிப்புகள் கிடைக்கும்."
+            },
+            Kannada: {
+                portalTagline: "ರೈತ ಖರೀದಿ ಮತ್ತು ಕ್ಯೂ ನಿರ್ವಹಣಾ ಪೋರ್ಟಲ್",
+                welcomeBack: "ಕಿಸಾನ್ ಸೇತುಗೆ ಸುಸ್ವಾಗತ",
+                portalSub: "ನಿಮ್ಮ ಖರೀದಿ ಸ್ಲಾಟ್ ಮತ್ತು ಪಾವತಿ ಸ್ಥಿತಿಯನ್ನು ನಿರ್ವಹಿಸಲು ಲಾಗಿನ್ ಮಾಡಿ",
+                signInTab: "ರೈತ ಸೈನ್ ಇನ್",
+                registerTab: "ಹೊಸ ನೋಂದಣಿ",
+                quickDemo: "ತ್ವರಿತ ಡೆಮೊ ಲಾಗಿನ್",
+                loginWithOtp: "ಮೊಬೈಲ್ ಒಟಿಪಿ",
+                loginWithPass: "ಪಾಸ್‌ವರ್ಡ್",
+                mobileOrFarmerId: "ಮೊಬೈಲ್ ಸಂಖ್ಯೆ / ಆಧಾರ್ ಸಂಖ್ಯೆ",
+                enterOtp: "6-ಅಂಕಿಯ ಒಟಿಪಿ ನಮೂದಿಸಿ",
+                getOtp: "ಒಟಿಪಿ ಪಡೆಯಿರಿ",
+                password: "ಪಾಸ್‌ವರ್ಡ್",
+                portalRole: "ಪಾತ್ರ ಆಯ್ಕೆ",
+                rememberMe: "ನನ್ನನ್ನು ನೆನಪಿನಲ್ಲಿಡಿ",
+                troubleSigningIn: "ತೊಂದರೆ ಇದೆಯೇ?",
+                signInBtn: "ಕಿಸಾನ್ ಸೇತುಗೆ ಲಾಗಿನ್ ಆಗಿ",
+                fullName: "ರೈತರ ಪೂರ್ಣ ಹೆಸರು *",
+                mobileNumber: "ಮೊಬೈಲ್ ಸಂಖ್ಯೆ *",
+                aadhaarNumber: "ಆಧಾರ್ ಸಂಖ್ಯೆ *",
+                landHolding: "ಜಮೀನು (ಎಕರೆ)",
+                state: "ರಾಜ್ಯ *",
+                district: "ಜಿಲ್ಲೆ *",
+                primaryCrop: "ಪ್ರಮುಖ ಬೆಳೆ",
+                prefCentre: "ಹತ್ತಿರದ ಖರೀದಿ ಕೇಂದ್ರ",
+                termsAgreement: "ಡಿಬಿಟಿ ಪಾವತಿಗಳಿಗೆ ಆಧಾರ್ ಜೋಡಣೆಗೆ ಒಪ್ಪುತ್ತೇನೆ.",
+                registerFarmerBtn: "ರೈತ ನೋಂದಣಿ ಪೂರ್ಣಗೊಳಿಸಿ",
+                guestExplore: "ಅತಿಥಿ ಮೋಡ್‌ನಲ್ಲಿ ನೋಡಿ",
+                h1Title: "ಕಾಯುವ ಸಮಯವಿಲ್ಲ",
+                h1Desc: "ಮೊದಲೇ ಸ್ಲಾಟ್ ಬುಕ್ ಮಾಡಿ ಮತ್ತು ಲೈವ್ ಕ್ಯೂ ಟ್ರ್ಯಾಕ್ ಮಾಡಿ.",
+                h2Title: "ಪಾರದರ್ಶಕ ಡಿಬಿಟಿ ಪಾವತಿ",
+                h2Desc: "ನೇರವಾಗಿ ಬ್ಯಾಂಕ್ ಖಾತೆಗೆ ಎಂಎಸ್‌ಪಿ ಮೊತ್ತ ಜಮೆಯಾಗುತ್ತದೆ.",
+                h3Title: "ತ್ವರಿತ ಎಸ್‌ಎಂಎಸ್ ಎಚ್ಚರಿಕೆ",
+                h3Desc: "ಕನ್ನಡದಲ್ಲಿ ಸ್ವಯಂಚಾಲಿತ ಸ್ಲಾಟ್ ದೃಢೀಕರಣ ಪಡೆಯಿರಿ."
+            },
+            Malayalam: {
+                portalTagline: "കർഷക സംഭരണ ക്യൂ മാനേജ്‌മെന്റ് പോർട്ടൽ",
+                welcomeBack: "കിസാൻ സേതുവിലേക്ക് സ്വാഗതം",
+                portalSub: "സംഭരണ സ്ലോട്ടുകളും പേയ്‌മെന്റും പരിശോധിക്കാൻ ലോഗിൻ ചെയ്യുക",
+                signInTab: "കർഷക ലോഗിൻ",
+                registerTab: "പുതിയ രജിസ്ട്രേഷൻ",
+                quickDemo: "ദ്രുത ഡെമോ ലോഗിൻ",
+                loginWithOtp: "മൊബൈൽ ഒടിപി",
+                loginWithPass: "പാസ്‌വേഡ്",
+                mobileOrFarmerId: "മൊബൈൽ നമ്പർ / ആധാർ",
+                enterOtp: "6-അക്ക ഒടിപി നൽകുക",
+                getOtp: "ഒടിപി നേടുക",
+                password: "പാസ്‌വേഡ്",
+                portalRole: "പോർട്ടൽ റോൾ",
+                rememberMe: "എന്നെ ഓർമ്മിക്കുക",
+                troubleSigningIn: "സഹായം ആവശ്യമുണ്ടോ?",
+                signInBtn: "ലോഗിൻ ചെയ്യുക",
+                fullName: "കർഷകന്റെ പേര് *",
+                mobileNumber: "മൊബൈൽ നമ്പർ *",
+                aadhaarNumber: "ആധാർ നമ്പർ *",
+                landHolding: "ഭൂമി (ഏക്കർ)",
+                state: "സംസ്ഥാനം *",
+                district: "ജില്ല *",
+                primaryCrop: "പ്രധാന വിള",
+                prefCentre: "അടുത്തുള്ള സംഭരണ കേന്ദ്രം",
+                termsAgreement: "ഡിബിടി പേയ്‌മെന്റുകൾക്കായി ആധാർ ലിങ്ക് ചെയ്യാൻ സമ്മതിക്കുന്നു.",
+                registerFarmerBtn: "രജിസ്ട്രേഷൻ പൂർത്തിയാക്കുക",
+                guestExplore: "ഗസ്റ്റ് മോഡിൽ തുടരുക",
+                h1Title: "കാത്തിരിപ്പ് സമയം പൂജ്യം",
+                h1Desc: "മുൻകൂട്ടി സ്ലോട്ട് ബുക്ക് ചെയ്യുകയും തത്സമയ ക്യൂ പരിശോധിക്കുകയും ചെയ്യുക.",
+                h2Title: "സുതാര്യമായ ഡിബിടി പേയ്‌മെന്റുകൾ",
+                h2Desc: "ബാങ്ക് അക്കൗണ്ടിലേക്ക് നേരിട്ട് മിനിമം താങ്ങുവില ലഭിക്കും.",
+                h3Title: "തത്സമയ എസ്എംഎസ് അറിയിപ്പുകൾ",
+                h3Desc: "സ്ലോട്ട് വിവരങ്ങളും ക്യൂ അപ്‌ഡേറ്റുകളും ലഭ്യമാകും."
+            }
+        };
+
+        let currentLang = localStorage.getItem("kisanSetuLanguage") || "English";
+
+        function applyLoginLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem("kisanSetuLanguage", lang);
+            document.getElementById("currentLoginLang").textContent = lang;
+
+            const dict = loginTranslations[lang] || loginTranslations.English;
+            document.querySelectorAll("[data-lang-key]").forEach(elem => {
+                const key = elem.getAttribute("data-lang-key");
+                if (dict[key]) {
+                    elem.textContent = dict[key];
+                }
+            });
+        }
+
+        // Toggle Language Dropdown
+        const loginLangBtn = document.getElementById("loginLangBtn");
+        const loginLangMenu = document.getElementById("loginLangMenu");
+
+        if (loginLangBtn) {
+            loginLangBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                loginLangMenu.classList.toggle("open");
+            });
+
+            document.querySelectorAll("#loginLangMenu button").forEach(btn => {
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const chosenLang = btn.getAttribute("data-lang");
+                    applyLoginLanguage(chosenLang);
+                    loginLangMenu.classList.remove("open");
+                });
+            });
+
+            document.addEventListener("click", () => {
+                loginLangMenu.classList.remove("open");
+            });
+        }
+
+        // Switch between Sign In and Registration tabs
+        function switchAuthTab(tab) {
+            const tabSignIn = document.getElementById("tabSignIn");
+            const tabSignUp = document.getElementById("tabSignUp");
+            const signInForm = document.getElementById("signInForm");
+            const signUpForm = document.getElementById("signUpForm");
+            const formTitle = document.getElementById("formTitle");
+            const formSubtitle = document.getElementById("formSubtitle");
+            const dict = loginTranslations[currentLang] || loginTranslations.English;
+
+            if (tab === "signin") {
+                tabSignIn.classList.add("active");
+                tabSignUp.classList.remove("active");
+                signInForm.style.display = "block";
+                signUpForm.style.display = "none";
+                formTitle.textContent = dict.welcomeBack;
+                formSubtitle.textContent = dict.portalSub;
+            } else {
+                tabSignUp.classList.add("active");
+                tabSignIn.classList.remove("active");
+                signInForm.style.display = "none";
+                signUpForm.style.display = "block";
+                formTitle.textContent = dict.registerTab;
+                formSubtitle.textContent = "Register with Aadhaar to get instant Mandi slots and direct DBT payments";
+            }
+        }
+
+        // Toggle OTP vs Password Method
+        function toggleLoginMethod(method) {
+            const otpSection = document.getElementById("otpSection");
+            const passwordSection = document.getElementById("passwordSection");
+            if (method === "otp") {
+                otpSection.style.display = "block";
+                passwordSection.style.display = "none";
+            } else {
+                otpSection.style.display = "none";
+                passwordSection.style.display = "block";
+            }
+        }
+
+        function togglePasswordVisibility(fieldId) {
+            const input = document.getElementById(fieldId);
+            if (input.type === "password") {
+                input.type = "text";
+            } else {
+                input.type = "password";
+            }
+        }
+
+        // Quick Demo Logins
+        function demoLogin(type) {
+            if (type === "farmer") {
+                const user = {
+                    name: "Ramesh Kumar",
+                    farmerId: "KS102458",
+                    mobile: "9876543210",
+                    aadhaar: "XXXX-XXXX-8921",
+                    role: "farmer",
+                    land: "5.5 Acres",
+                    state: "Andhra Pradesh",
+                    district: "Guntur",
+                    village: "Tenali Rural",
+                    crop: "Paddy / Rice",
+                    mandi: "AP State Procurement Centre",
+                    bankName: "State Bank of India",
+                    accountNo: "•••• •••• 4589",
+                    ifsc: "SBIN0001234",
+                    isLoggedIn: true
+                };
+                localStorage.setItem("kisanSetuUser", JSON.stringify(user));
+                localStorage.setItem("kisanSetuAuthToken", "demo-token-ks102458");
+                window.location.href = "index.html";
+            } else {
+                const user = {
+                    name: "Officer S. Sharma",
+                    farmerId: "MANDI-OFF-902",
+                    mobile: "9123456780",
+                    role: "officer",
+                    mandi: "AP State Procurement Centre (Yard 1)",
+                    isLoggedIn: true
+                };
+                localStorage.setItem("kisanSetuUser", JSON.stringify(user));
+                localStorage.setItem("kisanSetuAuthToken", "demo-officer-token");
+                window.location.href = "index.html";
+            }
+        }
+
+        // Simulated SMS OTP flow
+        function requestOtp() {
+            const mobile = document.getElementById("loginIdentifier").value.trim();
+            if (!mobile) {
+                alert("Please enter your Mobile Number or Farmer ID first.");
+                return;
+            }
+            const modal = document.getElementById("simulatedSmsModal");
+            modal.style.display = "flex";
+        }
+
+        function closeSmsModal() {
+            document.getElementById("simulatedSmsModal").style.display = "none";
+        }
+
+        function autofillSimulatedOtp() {
+            document.getElementById("loginOtp").value = "482910";
+            closeSmsModal();
+            // Automatically trigger sign-in
+            document.getElementById("signInSubmitBtn").click();
+        }
+
+        // Toggle Login Role (Farmer vs Officer)
+        function selectLoginRole(role) {
+            const tabFarmer = document.getElementById("roleTabFarmer");
+            const tabOfficer = document.getElementById("roleTabOfficer");
+            const roleInput = document.getElementById("loginRole");
+            const identifierInput = document.getElementById("loginIdentifier");
+            const identifierLabel = document.getElementById("identifierLabelText");
+            const submitBtnSpan = document.querySelector("#signInSubmitBtn span");
+
+            if (roleInput) roleInput.value = role;
+
+            if (role === "farmer") {
+                if (tabFarmer) tabFarmer.classList.add("active");
+                if (tabOfficer) tabOfficer.classList.remove("active");
+                if (identifierInput) {
+                    identifierInput.placeholder = "e.g. 9876543210 or KS102458";
+                    identifierInput.value = "9876543210";
+                }
+                if (identifierLabel) identifierLabel.textContent = "Mobile Number / Aadhaar / Farmer ID";
+                if (submitBtnSpan) submitBtnSpan.textContent = "Sign In as Farmer";
+            } else {
+                if (tabOfficer) tabOfficer.classList.add("active");
+                if (tabFarmer) tabFarmer.classList.remove("active");
+                if (identifierInput) {
+                    identifierInput.placeholder = "e.g. MANDI-OFF-902 or 9123456780";
+                    identifierInput.value = "MANDI-OFF-902";
+                }
+                if (identifierLabel) identifierLabel.textContent = "Officer Staff ID / Registered Mobile";
+                if (submitBtnSpan) submitBtnSpan.textContent = "Sign In as Mandi Officer";
+            }
+        }
+
+        // Handle Farmer or Officer Sign In
+        function handleSignIn(e) {
+            e.preventDefault();
+            const identifier = document.getElementById("loginIdentifier").value.trim();
+            const role = document.getElementById("loginRole") ? document.getElementById("loginRole").value : "farmer";
+            const otp = document.getElementById("loginOtp").value.trim();
+
+            if (!identifier) {
+                alert(role === "officer" ? "Please enter your Officer Staff ID or Mobile number." : "Please enter a valid mobile number or Farmer ID.");
+                return;
+            }
+
+            let user;
+            if (role === "officer") {
+                user = {
+                    name: "Officer S. Sharma",
+                    farmerId: identifier.includes("MANDI") ? identifier : "MANDI-OFF-902",
+                    mobile: identifier.length === 10 ? identifier : "9123456780",
+                    role: "officer",
+                    mandi: "AP State Procurement Centre (Yard 1)",
+                    bankName: "State Bank of India",
+                    accountNo: "•••• •••• 9921",
+                    ifsc: "SBIN0001234",
+                    isLoggedIn: true
+                };
+            } else {
+                user = {
+                    name: "Ramesh Kumar",
+                    farmerId: identifier.startsWith("KS") ? identifier : "KS102458",
+                    mobile: identifier.length === 10 ? identifier : "9876543210",
+                    aadhaar: "XXXX-XXXX-8921",
+                    role: "farmer",
+                    land: "5.5 Acres",
+                    state: "Andhra Pradesh",
+                    district: "Guntur",
+                    village: "Tenali Rural",
+                    crop: "Paddy / Rice",
+                    mandi: "AP State Procurement Centre",
+                    bankName: "State Bank of India",
+                    accountNo: "•••• •••• 4589",
+                    ifsc: "SBIN0001234",
+                    isLoggedIn: true
+                };
+            }
+
+            localStorage.setItem("kisanSetuUser", JSON.stringify(user));
+            localStorage.setItem("kisanSetuAuthToken", "auth-" + Date.now());
+
+            window.location.href = "index.html";
+        }
+
+        // Handle New Farmer Registration
+        function handleSignUp(e) {
+            e.preventDefault();
+            const name = document.getElementById("regName").value.trim();
+            const mobile = document.getElementById("regMobile").value.trim();
+            const aadhaar = document.getElementById("regAadhaar").value.trim();
+            const land = document.getElementById("regLand").value.trim();
+            const state = document.getElementById("regState").value;
+            const district = document.getElementById("regDistrict").value.trim();
+            const crop = document.getElementById("regCrop").value;
+            const mandi = document.getElementById("regMandi").value;
+
+            if (!name || !mobile || !aadhaar) {
+                alert("Please fill in all mandatory fields (*).");
+                return;
+            }
+
+            const randId = "KS" + Math.floor(100000 + Math.random() * 900000);
+            const newUser = {
+                name: name,
+                farmerId: randId,
+                mobile: mobile,
+                aadhaar: aadhaar,
+                land: land + " Acres",
+                state: state,
+                district: district,
+                village: district + " Rural",
+                crop: crop,
+                mandi: mandi,
+                role: "farmer",
+                bankName: "State Bank of India",
+                accountNo: "•••• •••• " + mobile.slice(-4),
+                ifsc: "SBIN0002450",
+                isLoggedIn: true
+            };
+
+            localStorage.setItem("kisanSetuUser", JSON.stringify(newUser));
+            localStorage.setItem("kisanSetuAuthToken", "auth-" + Date.now());
+            localStorage.setItem("kisanSetuHistory_" + randId, JSON.stringify([]));
+            localStorage.removeItem("kisanSetuCurrentBooking_" + randId);
+
+            alert(`Registration successful! Welcome to KisanSetu, ${name}.\nYour Farmer ID is: ${randId}`);
+            window.location.href = "index.html";
+        }
+
+        // Initialize on load
+        document.addEventListener("DOMContentLoaded", () => {
+            applyLoginLanguage(currentLang);
+        });
+    </script>
+</body>
+</html>

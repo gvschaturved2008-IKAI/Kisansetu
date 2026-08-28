@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>KisanSetu | Farmer Procurement Portal</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+    <!-- Our CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- =========================
+         APP CONTAINER
+    ========================== -->
+
+    <div class="app-container">
+
+        <!-- =========================
+             SIDEBAR
+        ========================== -->
+
+        <aside class="sidebar">
+
+            <!-- Logo -->
+            <div class="logo-area" style="cursor: pointer;" onclick="window.location.reload()">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-wheat-awn" id="logo-main-icon"></i>
+                </div>
+
+                <div class="logo-text">
+                    <h2>KisanSetu</h2>
+                    <span id="logo-subtitle" data-language-key="farmerProcurement">Farmer Procurement</span>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="sidebar-nav">
+
+                <!-- Farmer-Only Navigation -->
+                <div id="sidebar-farmer-nav">
+                    <p class="nav-title" data-language-key="mainMenu">MAIN MENU</p>
+
+                    <a href="#" class="nav-item active" data-action="dashboard">
+                        <i class="fa-solid fa-house"></i>
+                        <span data-language-key="dashboard">Dashboard</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="booking">
+                        <i class="fa-solid fa-calendar-check"></i>
+                        <span data-language-key="book">Book a Slot</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="tracker">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span data-language-key="track">Track Procurement</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="history">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span data-language-key="history">Booking History</span>
+                    </a>
+
+                    <p class="nav-title second-title" data-language-key="services">SERVICES</p>
+
+                    <a href="#" class="nav-item" data-action="payment">
+                        <i class="fa-solid fa-money-bill-wave"></i>
+                        <span data-language-key="payment">Payment Status</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="notifications">
+                        <i class="fa-solid fa-bell"></i>
+                        <span data-language-key="notifications">Notifications</span>
+                        <span class="notification-count" id="sidebar-notification-badge">3</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="centre">
+                        <i class="fa-solid fa-building"></i>
+                        <span data-language-key="centre">Procurement Centres</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="help">
+                        <i class="fa-solid fa-circle-question"></i>
+                        <span data-language-key="help">Help & Support</span>
+                    </a>
+                </div>
+
+                <!-- Officer-Only Navigation -->
+                <div id="sidebar-officer-nav" style="display: none;">
+                    <p class="nav-title" data-language-key="adminConsole">ADMIN CONSOLE</p>
+
+                    <a href="#" class="nav-item active" data-action="officer-overview" onclick="scrollToOfficerSection('officer-hero-section'); return false;">
+                        <i class="fa-solid fa-gauge-high"></i>
+                        <span data-language-key="navYardOverview">Yard Overview</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-queue" onclick="scrollToOfficerSection('officer-queue-section'); return false;">
+                        <i class="fa-solid fa-list-check"></i>
+                        <span data-language-key="navQueueManagement">Queue Management</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-records" onclick="openFarmerRecordsModal(); return false;">
+                        <i class="fa-solid fa-address-book"></i>
+                        <span data-language-key="navFarmerRecords">Farmer Records</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-reports" onclick="openMandiReportsModal(); return false;">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <span data-language-key="navReports">Reports</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-broadcast" onclick="scrollToOfficerSection('officer-broadcast-section'); return false;">
+                        <i class="fa-solid fa-bullhorn"></i>
+                        <span data-language-key="navBroadcastTool">Broadcast Alert</span>
+                    </a>
+                </div>
+
+            </nav>
+
+            <!-- Bottom Sidebar -->
+            <div class="sidebar-bottom">
+
+                <div class="help-card" id="sidebar-help-card" style="cursor: pointer;" onclick="openHelp()">
+                    <div class="help-icon">
+                        <i class="fa-solid fa-headset"></i>
+                    </div>
+
+                    <div>
+                        <strong data-language-key="needHelp">Need Help?</strong>
+                        <p data-language-key="talkSupport">Talk to our support team</p>
+                    </div>
+                </div>
+
+                <a href="#" class="nav-item profile-nav" data-action="profile">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <span data-language-key="profileSettings">Profile & Settings</span>
+                </a>
+
+                <a href="#" class="nav-item logout-nav" data-action="logout">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span data-language-key="logout">Logout</span>
+                </a>
+
+            </div>
+
+        </aside>
+
+        <!-- Mobile Sidebar Backdrop Overlay -->
+        <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+        <!-- =========================
+             MAIN CONTENT
+        ========================== -->
+
+        <main class="main-content">
+
+            <!-- =========================
+                 TOP BAR
+            ========================== -->
+
+            <header class="topbar">
+
+                <div class="mobile-menu">
+                    <i class="fa-solid fa-bars"></i>
+                </div>
+
+                <div class="page-heading">
+                    <h1 id="page-title" data-language-key="dashboard">Dashboard</h1>
+                    <p id="page-subtitle" data-language-key="manageProcurementJourney">Manage your procurement journey easily.</p>
+                </div>
+
+                <div class="topbar-actions">
+
+                    <!-- Role Indicator Badge (Set on Login) -->
+                    <div class="role-badge-display" id="topbar-role-badge">
+                        <span class="role-badge-tag farmer"><i class="fa-solid fa-wheat-awn"></i> Farmer Portal</span>
+                    </div>
+
+                    <!-- Language Switcher Button -->
+                    <button class="language-btn" onclick="openLanguageSelector()">
+                        <i class="fa-solid fa-language"></i>
+                        <span id="current-language">English</span>
+                        <i class="fa-solid fa-chevron-down small-icon"></i>
+                    </button>
+
+                    <!-- Notifications Button -->
+                    <button class="icon-button notification-button" id="topbar-notif-btn" onclick="openNotifications()" title="Notifications">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="notification-dot" id="topbar-notif-dot"></span>
+                    </button>
+
+                    <!-- Farmer Profile Widget -->
+                    <div class="user-profile" onclick="openProfile()" title="Click to view/edit settings">
+                        <div class="user-avatar" id="topbar-user-avatar">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+
+                        <div class="user-info">
+                            <strong id="topbar-farmer-name">Ramesh Kumar</strong>
+                            <span id="topbar-farmer-id">Farmer ID: KS102458</span>
+                        </div>
+
+                        <i class="fa-solid fa-chevron-down profile-arrow"></i>
+                    </div>
+
+                </div>
+
+            </header>
+
+            <!-- =========================
+                 PAGE CONTENT
+            ========================== -->
+
+            <section class="dashboard-content">
+
+                <!-- =========================
+                     1. FARMER DASHBOARD VIEW
+                ========================== -->
+                <div id="farmer-dashboard-view">
+
+                    <!-- WELCOME HERO BANNER -->
+                    <div class="welcome-banner">
+
+                        <div class="welcome-content">
+
+                            <div class="welcome-tag">
+                                <i class="fa-solid fa-seedling"></i>
+                                <span id="welcome-tag" data-language-key="farmerPortal">Farmer Portal</span>
+                            </div>
+
+                            <h2 id="welcome-title" data-language-key="welcomeTitle">
+                                Good morning, Ramesh! 👋
+                            </h2>
+
+                            <p id="welcome-description" data-language-key="welcomeDescription">
+                                Your procurement journey is just a few clicks away. Check your booking, queue and payment status here.
+                            </p>
+
+                            <div class="welcome-buttons">
+                                <button class="primary-button" onclick="openBooking()">
+                                    <i class="fa-solid fa-calendar-plus"></i>
+                                    <span id="book-new-slot" data-language-key="bookNewSlot">Book New Slot</span>
+                                </button>
+
+                                <button class="secondary-button" onclick="openTracker()">
+                                    <i class="fa-solid fa-location-dot"></i>
+                                    <span id="track-my-procurement" data-language-key="trackMyProcurement">Track My Procurement</span>
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <div class="welcome-illustration">
+                            <div class="sun-circle"></div>
+                            <i class="fa-solid fa-wheat-awn wheat-icon wheat-one"></i>
+                            <i class="fa-solid fa-wheat-awn wheat-icon wheat-two"></i>
+                            <i class="fa-solid fa-wheat-awn wheat-icon wheat-three"></i>
+                            <div class="farmer-illustration">
+                                <i class="fa-solid fa-person"></i>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- STAT CARDS -->
+                    <div class="stats-grid">
+
+                        <!-- Stat 1: Queue Position -->
+                        <div class="stat-card" style="cursor: pointer;" onclick="openTracker()">
+                            <div class="stat-card-top">
+                                <div class="stat-icon green-icon">
+                                    <i class="fa-solid fa-users"></i>
+                                </div>
+                                <span class="status-badge waiting" id="stat-queue-badge" data-language-key="inQueue">In Queue</span>
+                            </div>
+
+                            <p data-language-key="currentQueuePosition">Current Queue Position</p>
+
+                            <div class="stat-value" id="stat-queue-pos">07</div>
+
+                            <div class="stat-footer">
+                                <i class="fa-solid fa-clock"></i>
+                                <span data-language-key="estimatedWait">Estimated wait</span>:
+                                <strong id="stat-queue-wait">25 mins</strong>
+                            </div>
+                        </div>
+
+                        <!-- Stat 2: Next Procurement Slot -->
+                        <div class="stat-card" style="cursor: pointer;" onclick="openBooking()">
+                            <div class="stat-card-top">
+                                <div class="stat-icon orange-icon">
+                                    <i class="fa-solid fa-calendar-days"></i>
+                                </div>
+                                <span class="status-badge confirmed" id="stat-slot-badge" data-language-key="confirmed">Confirmed</span>
+                            </div>
+
+                            <p data-language-key="nextProcurementSlot">Next Procurement Slot</p>
+
+                            <div class="stat-value date-value" id="stat-slot-date">26 Aug</div>
+
+                            <div class="stat-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <i class="fa-solid fa-clock"></i>
+                                    <span data-language-key="tomorrow">Tomorrow</span> · 
+                                    <strong id="stat-slot-time">10:30 AM</strong>
+                                </div>
+                                <button type="button" class="text-btn" style="color:#d32f2f; font-size:11px; padding:2px 6px;" onclick="event.stopPropagation(); openCancelBookingModal()" title="Cancel this slot booking">
+                                    <i class="fa-solid fa-xmark"></i> <span data-language-key="cancelSlot">Cancel Slot</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Stat 3: Procurement Status -->
+                        <div class="stat-card" style="cursor: pointer;" onclick="openTracker()">
+                            <div class="stat-card-top">
+                                <div class="stat-icon blue-icon">
+                                    <i class="fa-solid fa-box"></i>
+                                </div>
+                                <span class="status-badge processing" id="stat-proc-badge" data-language-key="processing">Processing</span>
+                            </div>
+
+                            <p data-language-key="procurementStatus">Procurement Status</p>
+
+                            <div class="stat-value status-value" id="stat-proc-status" data-language-key="qualityCheck">Quality Check</div>
+
+                            <div class="stat-footer">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span id="stat-proc-sub" data-language-key="weighingCompleted">Weighing completed</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat 4: Payment Status -->
+                        <div class="stat-card" style="cursor: pointer;" onclick="openPayment()">
+                            <div class="stat-card-top">
+                                <div class="stat-icon purple-icon">
+                                    <i class="fa-solid fa-indian-rupee-sign"></i>
+                                </div>
+                                <span class="status-badge pending" id="stat-pay-badge" data-language-key="pending">Pending</span>
+                            </div>
+
+                            <p data-language-key="paymentStatus">Payment Status</p>
+
+                            <div class="stat-value" id="stat-pay-amount">₹48,650</div>
+
+                            <div class="stat-footer">
+                                <i class="fa-solid fa-hourglass-half"></i>
+                                <span id="stat-pay-sub" data-language-key="paymentUnderProcessing">Payment under processing</span>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- MAIN DASHBOARD GRID -->
+                    <div class="dashboard-grid">
+
+                        <!-- PROCUREMENT TRACKER TIMELINE CARD -->
+                        <div class="dashboard-card tracker-card">
+
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-language-key="procurementJourney">Procurement Journey</h3>
+                                    <p data-language-key="trackCropJourney">Track your crop from arrival to payment.</p>
+                                </div>
+
+                                <button class="more-button" onclick="openTracker()" title="Open Full Live Tracker">
+                                    <i class="fa-solid fa-up-right-from-square"></i>
+                                </button>
+                            </div>
+
+                            <div class="timeline">
+
+                                <!-- Step 1: Slot Booked -->
+                                <div class="timeline-item completed" id="timeline-step-1">
+                                    <div class="timeline-icon">
+                                        <i class="fa-solid fa-check"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <strong data-language-key="slotBooked">Slot Booked</strong>
+                                        <span id="timeline-slot-time">26 Aug · 10:30 AM</span>
+                                    </div>
+                                </div>
+
+                                <!-- Step 2: Arrived at Centre -->
+                                <div class="timeline-item completed" id="timeline-step-2">
+                                    <div class="timeline-icon">
+                                        <i class="fa-solid fa-check"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <strong data-language-key="arrivedAtCentre">Arrived at Centre</strong>
+                                        <span data-language-key="waitingForTurn">Waiting for your turn</span>
+                                    </div>
+                                </div>
+
+                                <!-- Step 3: Quality Check -->
+                                <div class="timeline-item current" id="timeline-step-3">
+                                    <div class="timeline-icon">
+                                        <i class="fa-solid fa-scale-balanced"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <strong data-language-key="qualityCheck">Quality Check</strong>
+                                        <span data-language-key="cropInspected">Your crop is being inspected</span>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Step 4: Payment -->
+                                <div class="timeline-item" id="timeline-step-4">
+                                    <div class="timeline-icon">
+                                        <i class="fa-solid fa-indian-rupee-sign"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <strong data-language-key="payment">Payment (DBT)</strong>
+                                        <span data-language-key="awaitingCompletion">Awaiting completion</span>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <!-- QUICK ACTIONS CARD -->
+                        <div class="dashboard-card quick-actions-card">
+
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-language-key="quickActions">Quick Actions</h3>
+                                    <p data-language-key="whatWouldYouLikeToDo">What would you like to do?</p>
+                                </div>
+                            </div>
+
+                            <div class="quick-actions">
+
+                                <button class="quick-action" onclick="openBooking()">
+                                    <div class="quick-action-icon">
+                                        <i class="fa-solid fa-calendar-plus"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="quickBookSlot">Book a Slot</strong>
+                                        <span data-language-key="chooseDateTime">Choose date & time</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
+                                <button class="quick-action" onclick="openTracker()">
+                                    <div class="quick-action-icon">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="trackMyTurn">Track My Turn</strong>
+                                        <span data-language-key="seeLiveQueue">See live queue</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
+                                <button class="quick-action" onclick="openProcurementReceiptModal()">
+                                    <div class="quick-action-icon" style="background:#e8f5ed; color:#174d32;">
+                                        <i class="fa-solid fa-receipt"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="jFormReceipt">J-Form Procurement Receipt</strong>
+                                        <span data-language-key="viewOfficialReceipt">View official weighment receipt</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
+                                <button class="quick-action" onclick="openCancelBookingModal()">
+                                    <div class="quick-action-icon" style="background:#fdeded; color:#d32f2f;">
+                                        <i class="fa-solid fa-calendar-xmark"></i>
+                                    </div>
+                                    <div>
+                                        <strong style="color:#d32f2f;" data-language-key="cancelSlotBooking">Cancel Slot Booking</strong>
+                                        <span data-language-key="cancelOrReschedule">Cancel or reschedule appointment</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- BOTTOM SECTION -->
+                    <div class="bottom-grid">
+
+                        <!-- Recent Activity -->
+                        <div class="dashboard-card recent-card">
+
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-language-key="recentActivity">Recent Activity</h3>
+                                    <p data-language-key="latestUpdates">Your latest procurement updates.</p>
+                                </div>
+
+                                <a href="#" class="view-all" onclick="openHistory(); return false;" data-language-key="viewAll">View All</a>
+                            </div>
+
+                            <div class="activity-list">
+
+                                <div class="activity-item">
+                                    <div class="activity-icon success">
+                                        <i class="fa-solid fa-check"></i>
+                                    </div>
+                                    <div class="activity-info">
+                                        <strong data-language-key="slotConfirmed">Slot confirmed</strong>
+                                        <span data-language-key="todayMorning">Today · 09:42 AM</span>
+                                    </div>
+                                    <span class="activity-status success-text" data-language-key="completed">Completed</span>
+                                </div>
+
+                                <div class="activity-item">
+                                    <div class="activity-icon">
+                                        <i class="fa-solid fa-scale-balanced"></i>
+                                    </div>
+                                    <div class="activity-info">
+                                        <strong data-language-key="cropWeighingCompleted">Crop weighing completed</strong>
+                                        <span data-language-key="todayNoon">Today · 11:15 AM</span>
+                                    </div>
+                                    <span class="activity-status" data-language-key="done">Done</span>
+                                </div>
+
+                                <div class="activity-item">
+                                    <div class="activity-icon warning">
+                                        <i class="fa-solid fa-indian-rupee-sign"></i>
+                                    </div>
+                                    <div class="activity-info">
+                                        <strong data-language-key="paymentInitiated">Payment initiated</strong>
+                                        <span data-language-key="todayAfternoon">Today · 01:20 PM</span>
+                                    </div>
+                                    <span class="activity-status warning-text" data-language-key="processing">Processing</span>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <!-- Procurement Centre Widget -->
+                        <div class="dashboard-card centre-card">
+
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-language-key="yourProcurementCentre">Your Procurement Centre</h3>
+                                    <p data-language-key="nearestCentre">Nearest centre to you</p>
+                                </div>
+
+                                <div class="centre-status">
+                                    <span></span>
+                                    <span data-language-key="open">Open</span>
+                                </div>
+                            </div>
+
+                            <div class="centre-map" onclick="openCentre()" style="cursor: pointer;">
+                                <div class="map-grid"></div>
+                                <div class="map-pin">
+                                    <i class="fa-solid fa-location-dot"></i>
+                                </div>
+                            </div>
+
+                            <div class="centre-details">
+                                <div>
+                                    <strong id="mandi-centre-name">AP State Procurement Centre</strong>
+                                    <span>
+                                        <i class="fa-solid fa-location-dot"></i>
+                                        <span id="mandi-centre-addr" data-language-key="mainAgriculturalMarket">Main Agricultural Market</span>
+                                    </span>
+                                </div>
+
+                                <button class="directions-button" onclick="openCentre()" title="Get Directions & Live Crowd Info">
+                                    <i class="fa-solid fa-diamond-turn-right"></i>
+                                </button>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- =========================
+                     2. MANDI OFFICER / ADMIN DASHBOARD VIEW
+                ========================== -->
+                <div id="officer-dashboard-view" style="display: none;">
+
+                    <!-- Officer Hero Banner -->
+                    <div class="officer-hero-banner" id="officer-hero-section">
+                        <div class="officer-hero-content">
+                            <div class="officer-tag">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <span data-language-key="officerPortalTag">Mandi Administration Portal • Yard 1</span>
+                            </div>
+                            <h2 data-language-key="officerHeroTitle">Mandi Officer & Yard Queue Controller 🏛️</h2>
+                            <p data-language-key="officerHeroDesc">Real-time weighbridge intake, quality verification, queue dispatch, and direct benefit transfer (DBT) approvals.</p>
+                            <div class="officer-hero-meta">
+                                <span><i class="fa-solid fa-location-dot"></i> AP State Procurement Centre, Guntur Yard</span>
+                                <span><i class="fa-solid fa-user-shield"></i> <span data-language-key="officerIncharge">Officer Incharge:</span> <strong id="officer-incharge-name">Officer S. Sharma (MANDI-OFF-902)</strong></span>
+                                <span><i class="fa-solid fa-circle-check" style="color:#2ecc71;"></i> <span data-language-key="weighbridgeOnline">Weighbridge Online</span></span>
+                            </div>
+                        </div>
+                        <div class="officer-hero-actions">
+                            <button class="primary-button" onclick="officerAdvanceNextQueue()">
+                                <i class="fa-solid fa-bullhorn"></i> <span data-language-key="callNextTokenBtn">Call Next Token</span>
+                            </button>
+                            <button class="secondary-button" onclick="openSpotBookingModal()">
+                                <i class="fa-solid fa-user-plus"></i> <span data-language-key="walkInTokenBtn">Walk-In Token</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Officer Daily Summary Stats Grid -->
+                    <div class="stats-grid officer-stats-grid">
+                        <!-- Stat 1: Total Farmers Served Today -->
+                        <div class="stat-card" style="cursor:pointer;" onclick="scrollToOfficerSection('officer-queue-section')">
+                            <div class="stat-card-top">
+                                <div class="stat-icon blue-icon"><i class="fa-solid fa-users"></i></div>
+                                <span class="status-badge processing" id="officer-stat-served-badge">Today's Progress</span>
+                            </div>
+                            <p data-language-key="totalFarmersServed">Total Farmers Served Today</p>
+                            <div class="stat-value" id="officer-stat-total-served">22 <span style="font-size:16px;">Farmers</span></div>
+                            <div class="stat-footer">
+                                <i class="fa-solid fa-circle-check" style="color:#27ae60;"></i>
+                                <span id="officer-stat-served-sub"><strong>18 Completed</strong> • 4 In Queue</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat 2: Total Quantity Procured -->
+                        <div class="stat-card" style="cursor:pointer;" onclick="openMandiReportsModal()">
+                            <div class="stat-card-top">
+                                <div class="stat-icon orange-icon"><i class="fa-solid fa-scale-unbalanced-flip"></i></div>
+                                <span class="status-badge confirmed">Target: 500 Q</span>
+                            </div>
+                            <p data-language-key="procuredToday">Total Quantity Procured</p>
+                            <div class="stat-value" id="officer-stat-weight">342.5 <span style="font-size:16px;">Q</span></div>
+                            <div class="stat-footer">
+                                <i class="fa-solid fa-indian-rupee-sign"></i> MSP Value: <strong>₹7.85L Released</strong>
+                            </div>
+                        </div>
+
+                        <!-- Stat 3: Average Wait Time -->
+                        <div class="stat-card">
+                            <div class="stat-card-top">
+                                <div class="stat-icon purple-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                                <span class="status-badge confirmed" style="background:#eef2ff; color:#4f46e5;">Target: &lt; 25m</span>
+                            </div>
+                            <p data-language-key="avgWaitTime">Average Yard Wait Time</p>
+                            <div class="stat-value" id="officer-stat-wait-time">18 <span style="font-size:16px;">mins</span></div>
+                            <div class="stat-footer">
+                                <i class="fa-solid fa-bolt" style="color:#f59e0b;"></i>
+                                <span>High Throughput • 4.2m/truck</span>
+                            </div>
+                        </div>
+
+                        <!-- Stat 4: Active Yard Queue -->
+                        <div class="stat-card" style="cursor:pointer;" onclick="scrollToOfficerSection('officer-queue-section')">
+                            <div class="stat-card-top">
+                                <div class="stat-icon green-icon"><i class="fa-solid fa-truck-ramp-box"></i></div>
+                                <span class="status-badge waiting" id="officer-stat-queue-count">4 Active</span>
+                            </div>
+                            <p data-language-key="yardQueueWaiting">Active Yard Queue</p>
+                            <div class="stat-value" id="officer-stat-queue-num">04 <span style="font-size:16px;">Trucks</span></div>
+                            <div class="stat-footer">
+                                <i class="fa-solid fa-clock"></i> Est. clearance: <strong>35 mins</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Operator Controls Bar -->
+                    <div class="operator-controls-bar">
+                        <div class="operator-title">
+                            <i class="fa-solid fa-sliders"></i>
+                            <strong data-language-key="yardDispatcherTitle">Yard Queue Dispatcher & Broadcast Controls</strong>
+                        </div>
+                        <div class="operator-buttons">
+                            <button type="button" class="op-btn op-btn-call" onclick="officerAdvanceNextQueue()">
+                                <i class="fa-solid fa-bullhorn"></i> <span data-language-key="callNextFarmerBtn">Call Next Farmer</span>
+                            </button>
+                            <button type="button" class="op-btn op-btn-broadcast" onclick="scrollToOfficerSection('officer-broadcast-section')">
+                                <i class="fa-solid fa-volume-high"></i> <span data-language-key="mandiVoiceBroadcastBtn">Mandi Voice Broadcast</span>
+                            </button>
+                            <button type="button" class="op-btn op-btn-spot" onclick="openSpotBookingModal()">
+                                <i class="fa-solid fa-plus"></i> <span data-language-key="issueSpotPassBtn">Issue Spot Pass</span>
+                            </button>
+                            <button type="button" class="op-btn op-btn-reset" onclick="resetOfficerYardQueue()">
+                                <i class="fa-solid fa-rotate-left"></i> <span data-language-key="resetDemoQueueBtn">Reset Demo Queue</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mandi Yard Loudspeaker & SMS Broadcast Tool Card -->
+                    <div class="dashboard-card officer-broadcast-card" id="officer-broadcast-section">
+                        <div class="card-header">
+                            <div>
+                                <h3 data-language-key="broadcastTitle">Mandi Yard Loudspeaker & SMS Broadcast</h3>
+                                <p data-language-key="broadcastSubtitle">Send audio voice announcements over loudspeakers and simulated SMS alerts to all farmers currently in the yard queue.</p>
+                            </div>
+                            <span class="live-pill" style="background:#fff8e6; color:#b45309; border-color:#fcd34d;">
+                                <i class="fa-solid fa-tower-broadcast"></i> Yard PA System Online
+                            </span>
+                        </div>
+
+                        <div class="broadcast-body" style="padding:16px 20px 20px;">
+                            <div class="broadcast-template-chips">
+                                <button type="button" class="template-chip active" id="chip-general" onclick="selectBroadcastTemplate('general')">📢 General Yard Notice</button>
+                                <button type="button" class="template-chip" id="chip-moisture" onclick="selectBroadcastTemplate('moisture')">⚠️ Moisture Check Warning</button>
+                                <button type="button" class="template-chip" id="chip-gate2" onclick="selectBroadcastTemplate('gate2')">🚜 Gate 2 Weighbridge Open</button>
+                                <button type="button" class="template-chip" id="chip-priority" onclick="selectBroadcastTemplate('priority')">⚡ Priority Tokens Call</button>
+                            </div>
+
+                            <div class="form-group" style="margin:14px 0 10px;">
+                                <textarea id="officer-broadcast-input" rows="3" class="custom-select" style="resize:vertical; font-size:13.5px; padding:10px; width:100%; border-radius:10px;" placeholder="Type broadcast message for farmers in queue..."></textarea>
+                            </div>
+
+                            <div class="broadcast-footer-actions" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                                <div class="broadcast-meta-info" style="font-size:12px; color:#5c6c63; display:flex; gap:16px;">
+                                    <span><i class="fa-solid fa-users"></i> Audience: <strong>All Farmers in Queue</strong></span>
+                                    <span><i class="fa-solid fa-volume-high"></i> PA Speakers + SMS Gateway</span>
+                                </div>
+                                <button type="button" class="primary-button" onclick="handleSendBroadcast(event)" style="padding:10px 20px;">
+                                    <i class="fa-solid fa-paper-plane"></i> <span data-language-key="sendBroadcastBtn">Broadcast to All Farmers</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Mandi Yard Queue Table Card -->
+                    <div class="dashboard-card officer-queue-card" id="officer-queue-section">
+                        <div class="card-header">
+                            <div>
+                                <h3 data-language-key="liveYardQueueTitle">Live Mandi Yard Queue & Weighbridge Operations</h3>
+                                <p data-language-key="liveYardQueueDesc">Manage active farmers through Weighbridge Entry, Quality Inspection, Tare Weighing, and DBT Settlement.</p>
+                            </div>
+                            <div class="yard-table-filter">
+                                <span class="live-pill"><span class="pulse-dot"></span> <span data-language-key="liveYardFeed">Live Yard Feed</span></span>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="officer-queue-table">
+                                <thead>
+                                    <tr>
+                                        <th data-language-key="thToken">Token #</th>
+                                        <th data-language-key="thFarmerId">Farmer & ID</th>
+                                        <th data-language-key="thCropQty">Crop & Quantity</th>
+                                        <th data-language-key="thVehicleNo">Vehicle No.</th>
+                                        <th data-language-key="thCurrentStage">Status / Stage</th>
+                                        <th style="text-align:right;" data-language-key="thOfficerActions">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="officer-queue-table-body">
+                                    <!-- Rendered dynamically by script.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- =========================
+                 FOOTER
+            ========================== -->
+
+            <footer class="footer">
+                <span>© 2026 KisanSetu • Ministry of Consumer Affairs, Food & Public Distribution</span>
+                <div>
+                    <a href="javascript:void(0)" onclick="openHelp()" data-language-key="privacy">Privacy</a>
+                    <a href="javascript:void(0)" onclick="openHelp()" data-language-key="terms">Terms</a>
+                    <a href="javascript:void(0)" onclick="openHelp()" data-language-key="help" id="footer-help-link">Help</a>
+                </div>
+            </footer>
+
+        </main>
+
+    </div>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+
+</body>
+</html>

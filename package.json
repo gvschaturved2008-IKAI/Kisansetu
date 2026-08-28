@@ -1,0 +1,13 @@
+{
+  "name": "kisan-setu-prototype",
+  "version": "1.0.0",
+  "description": "KisanSetu - Unified Farmer Procurement & Queue Management Portal",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "deploy": "vercel"
+  },
+  "keywords": ["farmer", "procurement", "kisan-setu", "mandi"],
+  "author": "",
+  "license": "ISC"
+}
