@@ -2478,6 +2478,7 @@ const KisanVani = (function() {
 
     const SUGGESTIONS = {
         en: [
+            "Find me the best slot",
             "What is my queue position?",
             "When is my procurement slot?",
             "Show my QR pass",
@@ -2488,6 +2489,7 @@ const KisanVani = (function() {
             "How do I contact support?"
         ],
         te: [
+            "మంచి స్లాట్ సూచించండి",
             "నా క్యూ పొజిషన్ ఎంత?",
             "నా స్లాట్ సమయం ఎప్పుడు?",
             "నా QR పాస్ చూపించు",
@@ -2498,6 +2500,7 @@ const KisanVani = (function() {
             "సహాయం ఎలా పొందాలి?"
         ],
         hi: [
+            "कम भीड़ वाला स्लॉट बताएं",
             "मेरी कतार में स्थिति क्या है?",
             "मेरा खरीद स्लॉट कब है?",
             "मेरा QR पास दिखाएं",
@@ -2586,16 +2589,34 @@ const KisanVani = (function() {
     function detectIntent(rawQuery, lang) {
         const q = (rawQuery || "").toLowerCase().trim();
 
-        // 1. Queue Status & Token turn queries
+        // 1. Existing Slot Information & Timing queries ("When is MY slot?")
         if (
-            q.includes("queue") || q.includes("position") || q.includes("turn") || q.includes("ahead") || q.includes("wait") || q.includes("token") ||
+            q.includes("when is my slot") || q.includes("my slot date") || q.includes("my slot time") || q.includes("my slot") ||
+            q.includes("నా స్లాట్ తేదీ") || q.includes("నా స్లాట్ సమయం") || (q.includes("నా స్లాట్") && q.includes("ఎప్పుడు")) ||
+            q.includes("मेरा खरीद स्लॉट") || q.includes("मेरा स्लॉट कब") || q.includes("स्लॉट की तारीख")
+        ) {
+            return "SLOT_INFORMATION";
+        }
+
+        // 2. Smart Slot Recommendation / Low crowd inquiries (Priority Recommendation Engine)
+        if (
+            q.includes("best slot") || q.includes("smart slot") || q.includes("least crowd") || q.includes("least wait") || q.includes("least waiting") || q.includes("lowest wait") || q.includes("waiting time") || q.includes("less crowd") || q.includes("less wait") || q.includes("when to come") || q.includes("which time") || q.includes("recommend slot") || q.includes("suggest slot") || q.includes("which slot") || q.includes("slot recommend") || (q.includes("slot") && (q.includes("best") || q.includes("good") || q.includes("find") || q.includes("low") || q.includes("crowd") || q.includes("less") || q.includes("least") || q.includes("recommend") || q.includes("suggest") || q.includes("line"))) ||
+            q.includes("మంచి స్లాట్") || q.includes("తక్కువ రద్దీ") || q.includes("స్మార్ట్ స్లాట్") || q.includes("ఎప్పుడు రావాలి") || q.includes("రద్దీ") || (q.includes("స్లాట్") && (q.includes("మంచి") || q.includes("తక్కువ") || q.includes("సూచించండి") || q.includes("చెప్పండి"))) ||
+            q.includes("सबसे अच्छा स्लॉट") || q.includes("कम भीड़") || q.includes("सही समय") || q.includes("स्मार्ट स्लॉट") || q.includes("कब आना") || q.includes("भीड़") || (q.includes("स्लॉट") && (q.includes("कम") || q.includes("अच्छा") || q.includes("बताएं") || q.includes("बताओ") || q.includes("लाइन")))
+        ) {
+            return "SMART_SLOT";
+        }
+
+        // 3. Queue Status & Token turn queries
+        if (
+            q.includes("queue") || q.includes("position") || q.includes("turn") || q.includes("ahead") || q.includes("token") ||
             q.includes("క్యూ") || q.includes("స్థానం") || q.includes("నంబర్") || q.includes("వంతు") || q.includes("ఎంతమంది") || q.includes("వేచి") ||
             q.includes("कतार") || q.includes("स्थान") || q.includes("नंबर") || q.includes("बारी") || q.includes("कितना समय") || q.includes("इंतजार")
         ) {
             return "QUEUE_STATUS";
         }
 
-        // 2. QR Code / Gate Pass queries
+        // 4. QR Code / Gate Pass queries
         if (
             q.includes("qr") || q.includes("gate pass") || q.includes("pass") || q.includes("entry pass") || q.includes("scan") ||
             q.includes("క్యూఆర్") || q.includes("పాస్") || q.includes("గేట్ పాస్") ||
@@ -2604,7 +2625,7 @@ const KisanVani = (function() {
             return "QR_HELP";
         }
 
-        // 3. Quality, Grain Defect, Moisture & Lab queries
+        // 5. Quality, Grain Defect, Moisture & Lab queries
         if (
             q.includes("quality") || q.includes("inspect") || q.includes("moisture") || q.includes("defect") || q.includes("grade") || q.includes("grain") ||
             q.includes("నాణ్యత") || q.includes("తనిఖీ") || q.includes("తేమ") || q.includes("గ్రేడ్") || q.includes("ధాన్యం") || q.includes("లోపం") ||
@@ -2613,7 +2634,7 @@ const KisanVani = (function() {
             return "QUALITY_STATUS";
         }
 
-        // 4. Payment / DBT / Bank queries
+        // 6. Payment / DBT / Bank queries
         if (
             q.includes("payment") || q.includes("dbt") || q.includes("money") || q.includes("rupee") || q.includes("payout") || q.includes("paid") || q.includes("bank") ||
             q.includes("పేమెంట్") || q.includes("డబ్బు") || q.includes("చెల్లింపు") || q.includes("బ్యాంక్") || q.includes("డిబిటి") ||
@@ -2622,7 +2643,7 @@ const KisanVani = (function() {
             return "PAYMENT_STATUS";
         }
 
-        // 5. Support / Help / Grievance / Officer queries
+        // 7. Support / Help / Grievance / Officer queries
         if (
             q.includes("help") || q.includes("support") || q.includes("contact") || q.includes("complaint") || q.includes("grievance") || q.includes("officer") || q.includes("call") || q.includes("helpline") ||
             q.includes("సహాయం") || q.includes("మద్దతు") || q.includes("ఫిర్యాదు") || q.includes("సంప్రదించండి") ||
@@ -2631,7 +2652,7 @@ const KisanVani = (function() {
             return "GRIEVANCE_HELP";
         }
 
-        // 6. Centre / Mandi / Location queries
+        // 8. Centre / Mandi / Location queries
         if (
             q.includes("centre") || q.includes("center") || q.includes("mandi") || q.includes("yard") || q.includes("where") || q.includes("location") || q.includes("address") ||
             q.includes("కేంద్రం") || q.includes("మండీ") || q.includes("ఎక్కడ") || q.includes("చిరునామా") ||
@@ -2640,7 +2661,7 @@ const KisanVani = (function() {
             return "CENTRE_INFORMATION";
         }
 
-        // 7. Notification / Alerts queries
+        // 9. Notification / Alerts queries
         if (
             q.includes("notification") || q.includes("alert") || q.includes("message") || q.includes("update") ||
             q.includes("నోటిఫికేషన్") || q.includes("అలర్ట్") || q.includes("సందేశం") ||
@@ -2649,7 +2670,7 @@ const KisanVani = (function() {
             return "NOTIFICATIONS";
         }
 
-        // 8. Slot timing / Date queries
+        // 10. General Slot timing / Date queries
         if (
             q.includes("when") || q.includes("date") || q.includes("time") || q.includes("timing") || q.includes("slot time") ||
             q.includes("ఎప్పుడు") || q.includes("తేదీ") || q.includes("సమయం") ||
@@ -2658,7 +2679,7 @@ const KisanVani = (function() {
             return "SLOT_INFORMATION";
         }
 
-        // 9. Booking specifics queries
+        // 11. Booking specifics queries
         if (
             q.includes("booking") || q.includes("booking id") || q.includes("crop") || q.includes("quantity") || q.includes("appointment") ||
             q.includes("బుకింగ్") || q.includes("పంట") || q.includes("పరిమాణం") ||
@@ -2667,7 +2688,7 @@ const KisanVani = (function() {
             return "BOOKING_STATUS";
         }
 
-        // 10. General Procurement Status & Stage queries
+        // 11. General Procurement Status & Stage queries
         if (
             q.includes("status") || q.includes("procurement") || q.includes("progress") || q.includes("stage") || q.includes("completed") ||
             q.includes("ప్రగతి") || q.includes("దశ") || q.includes("స్థితి") || q.includes("సేకరణ") ||
@@ -2676,7 +2697,7 @@ const KisanVani = (function() {
             return "PROCUREMENT_STATUS";
         }
 
-        // 11. Greeting & Introductory queries
+        // 12. Greeting & Introductory queries
         if (
             q.includes("hello") || q.includes("hi") || q.includes("namaste") || q.includes("vanakkam") || q.includes("hey") || q.includes("kisan vani") ||
             q.includes("హలో") || q.includes("నమస్కారం") ||
@@ -2688,7 +2709,20 @@ const KisanVani = (function() {
         return "UNKNOWN";
     }
 
-    function generateResponse(intent, query, lang, ctx) {
+    function generateResponse(intentOrQuery, rawQueryOrLang, rawLang, rawCtx) {
+        let intent = intentOrQuery;
+        let query = rawQueryOrLang || "";
+        let lang = rawLang || currentLanguage;
+        let ctx = rawCtx;
+
+        const KNOWN_INTENTS = ["QUEUE_STATUS", "QR_HELP", "QUALITY_STATUS", "PAYMENT_STATUS", "GRIEVANCE_HELP", "CENTRE_INFORMATION", "NOTIFICATIONS", "SMART_SLOT", "SLOT_INFORMATION", "BOOKING_STATUS", "GENERAL_HELP", "UNKNOWN"];
+        if (!KNOWN_INTENTS.includes(intentOrQuery)) {
+            query = intentOrQuery;
+            lang = rawQueryOrLang || currentLanguage;
+            intent = detectIntent(query, lang);
+        }
+        if (!ctx) ctx = buildFarmerContext();
+
         let text = "";
         let actions = [];
 
@@ -2825,6 +2859,32 @@ const KisanVani = (function() {
                 actions.push({ label: lang === "te" ? "సహాయం పొందండి" : (lang === "hi" ? "सहायता लें" : "Get Support"), onclick: "openHelp()" });
                 break;
 
+            case "SMART_SLOT":
+                const recData = (typeof KisanCongestionAI !== "undefined" && typeof KisanCongestionAI.recommendProcurementSlot === "function")
+                    ? KisanCongestionAI.recommendProcurementSlot({ crop: ctx.crop, centre: ctx.centre, quantity: ctx.quantity })
+                    : { success: true, recommended: { timeSlot: "10:30 AM", waitRangeText: "15–30 min", congestionLevel: "LOW", waitMins: 25 }, avoid: { timeSlot: "12:00 PM" } };
+                
+                const recSlot = recData.recommended || { timeSlot: "10:30 AM", waitRangeText: "15–30 min", congestionLevel: "LOW", waitMins: 25 };
+                const avoidSlot = recData.avoid || { timeSlot: "12:00 PM" };
+
+                if (lang === "te") {
+                    text = `రైతు సేకరణ డేటా ఆధారంగా, తక్కువ రద్దీ ఉండే ఉత్తమ సమయం రేపు ${recSlot.timeSlot} (అంచనా వేచి ఉండే సమయం: ${recSlot.waitRangeText}, రద్దీ: ${recSlot.congestionLevel}). గరిష్ట రద్దీ ఉన్నందున ${avoidSlot.timeSlot} సమయాన్ని నివారించండి.`;
+                } else if (lang === "hi") {
+                    text = `किसान सेतु डेटा के अनुसार, कम भीड़ वाला सबसे अच्छा समय कल ${recSlot.timeSlot} है (अनुमानित प्रतीक्षा: ${recSlot.waitRangeText}, लोड: ${recSlot.congestionLevel})। दोपहर ${avoidSlot.timeSlot} में अत्यधिक भीड़ रह सकती है।`;
+                } else {
+                    text = `Based on live mandi queue and scheduled capacity, the recommended low-crowd slot is Tomorrow at ${recSlot.timeSlot} (Est. wait: ~${recSlot.waitMins || 25} mins, Load: ${recSlot.congestionLevel}). Avoid ${avoidSlot.timeSlot} due to mid-day peak bottleneck.`;
+                }
+
+                actions.push({ 
+                    label: lang === "te" ? `స్లాట్ బుక్ చేయండి (${recSlot.timeSlot})` : (lang === "hi" ? `यह स्लॉट बुक करें (${recSlot.timeSlot})` : `Book Slot (${recSlot.timeSlot})`), 
+                    onclick: `KisanCongestionAI.bookRecommendedSlot('${ctx.crop.replace(/'/g, "\\'")}', 21.5, '${ctx.centre.replace(/'/g, "\\'")}', '', '${recSlot.timeSlot}')` 
+                });
+                actions.push({ 
+                    label: lang === "te" ? "స్మార్ట్ స్లాట్ ఫైండర్" : (lang === "hi" ? "स्मार्ट स्लॉट खोजें" : "Smart Slot Finder"), 
+                    onclick: "openSmartSlotModal()" 
+                });
+                break;
+
             case "GENERAL_HELP":
                 if (lang === "te") {
                     text = `నమస్కారం! నేను కిసాన్ వాణి AI సహాయకుడిని. మీ క్యూ నంబర్, బుకింగ్ సమయం, నాణ్యత తనిఖీ, గేట్ పాస్ QR, మరియు చెల్లింపుల గురించి నన్ను అడగవచ్చు.`;
@@ -2848,7 +2908,7 @@ const KisanVani = (function() {
                 break;
         }
 
-        return { text, actions };
+        return { intent, text, actions };
     }
 
     function getStoredHistory() {
@@ -3211,11 +3271,591 @@ function openKisanVani() {
 }
 
 /* =========================================================
+   TASK 06: KISANCONGESTIONAI — SMART SLOT RECOMMENDATION & MANDI CONGESTION
+   Data-Driven Heuristic Mandi Demand Modeling & Explainable AI Engine
+========================================================= */
+
+const KisanCongestionAI = (function() {
+    const STANDARD_SLOTS = ["09:00 AM", "10:30 AM", "12:00 PM", "02:30 PM", "04:00 PM"];
+    const CENTRE_CAPACITY = {
+        "AP State Procurement Centre": 15,
+        "AP State Procurement Centre (Yard 1)": 15,
+        "AP State Procurement Centre, Guntur Yard": 15,
+        "District Food Grain Hub": 12,
+        "District Food Grain Hub (Yard 2)": 12,
+        "Main Agricultural Market, District Yard": 18
+    };
+
+    function getNormalizedCentreName(centre) {
+        if (!centre) return "AP State Procurement Centre (Yard 1)";
+        const cStr = typeof centre === "string" ? centre : (centre.name || String(centre));
+        if (cStr.includes("District Food Grain")) return "District Food Grain Hub (Yard 2)";
+        if (cStr.includes("Main Agricultural")) return "Main Agricultural Market, District Yard";
+        return "AP State Procurement Centre (Yard 1)";
+    }
+
+    function getCentreCapacity(centre) {
+        const norm = getNormalizedCentreName(centre);
+        return CENTRE_CAPACITY[norm] || 15;
+    }
+
+    function getLiveQueueBacklog(centre) {
+        if (typeof yardQueueData === "undefined" || !Array.isArray(yardQueueData)) return 3;
+        const active = yardQueueData.filter(f => f.stageCode !== "completed");
+        return active.length;
+    }
+
+    function getBookedCountsBySlot(centre, date) {
+        const counts = {};
+        STANDARD_SLOTS.forEach(s => counts[s] = 0);
+
+        if (typeof currentBooking !== "undefined" && currentBooking) {
+            const bSlot = currentBooking.time;
+            if (bSlot && counts[bSlot] !== undefined) {
+                counts[bSlot] += 1;
+            }
+        }
+
+        if (typeof bookingHistory !== "undefined" && Array.isArray(bookingHistory)) {
+            bookingHistory.forEach(b => {
+                if (b.status === "Confirmed" && b.time && counts[b.time] !== undefined) {
+                    counts[b.time] += 1;
+                }
+            });
+        }
+
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            yardQueueData.forEach(f => {
+                if (f.time && counts[f.time] !== undefined && f.stageCode !== "completed") {
+                    counts[f.time] += 1;
+                }
+            });
+        }
+
+        return counts;
+    }
+
+    function calculateSlotCongestion(centre, date, timeSlot, crop, quantity) {
+        const cap = getCentreCapacity(centre);
+        const bookedCounts = getBookedCountsBySlot(centre, date);
+        const slotBooked = bookedCounts[timeSlot] || 0;
+        const queueBacklog = getLiveQueueBacklog(centre);
+
+        let timeModifier = 0;
+        let timeDesc = "Standard throughput window";
+        if (timeSlot === "09:00 AM") {
+            timeModifier = 1.0;
+            timeDesc = "Morning opening intake window";
+        } else if (timeSlot === "10:30 AM") {
+            timeModifier = 0.5;
+            timeDesc = "High throughput inspection window";
+        } else if (timeSlot === "12:00 PM") {
+            timeModifier = 4.0;
+            timeDesc = "Mid-day weighbridge peak accumulation";
+        } else if (timeSlot === "02:30 PM") {
+            timeModifier = -1.5;
+            timeDesc = "Post-lunch rapid clearance window";
+        } else if (timeSlot === "04:00 PM") {
+            timeModifier = 1.0;
+            timeDesc = "Late afternoon final batch intake";
+        }
+
+        const expectedTrucks = Math.max(1, slotBooked + Math.round(queueBacklog * 0.45) + Math.round(timeModifier));
+        const utilizationPct = Math.min(100, Math.round((expectedTrucks / cap) * 100));
+
+        let waitMins = Math.round(16 + (expectedTrucks * 3.2));
+        waitMins = Math.max(15, Math.min(85, waitMins));
+
+        let congestionLevel = "LOW";
+        let congestionClass = "congestion-pill-low";
+        let waitRangeText = "15–30 min";
+
+        if (waitMins > 55 || utilizationPct >= 80) {
+            congestionLevel = "HIGH";
+            congestionClass = "congestion-pill-high";
+            waitRangeText = "60+ min";
+        } else if (waitMins >= 30 || utilizationPct >= 48) {
+            congestionLevel = "MEDIUM";
+            congestionClass = "congestion-pill-med";
+            waitRangeText = "30–60 min";
+        }
+
+        const whyBullets = [];
+        if (congestionLevel === "LOW") {
+            whyBullets.push({ text: `✓ Low queue backlog (${expectedTrucks} trucks expected in yard)`, type: "pro" });
+            whyBullets.push({ text: `✓ Available weighbridge capacity (${100 - utilizationPct}% slot free)`, type: "pro" });
+            if (timeSlot === "02:30 PM" || timeSlot === "10:30 AM") {
+                whyBullets.push({ text: `✓ Optimal inspection throughput rate (${timeDesc})`, type: "pro" });
+            }
+        } else if (congestionLevel === "MEDIUM") {
+            whyBullets.push({ text: `• Moderate booking density (${expectedTrucks} of ${cap} slot capacity)`, type: "mod" });
+            whyBullets.push({ text: `• Manageable wait time with standard weighment pace`, type: "mod" });
+        } else {
+            whyBullets.push({ text: `⚠ High booking accumulation (${expectedTrucks} trucks queued/booked)`, type: "con" });
+            whyBullets.push({ text: `⚠ Peak mid-day yard bottleneck (${utilizationPct}% capacity filled)`, type: "con" });
+        }
+
+        return {
+            timeSlot,
+            centre,
+            date,
+            expectedTrucks,
+            capacity: cap,
+            utilizationPct,
+            waitMins,
+            waitRangeText,
+            congestionLevel,
+            congestionClass,
+            whyBullets,
+            compositeScore: 100 - (waitMins * 1.1) - (utilizationPct * 0.4)
+        };
+    }
+
+    function recommendProcurementSlot(criteria = {}) {
+        const crop = criteria.crop || "Paddy / Rice";
+        const centre = getNormalizedCentreName(criteria.centre);
+        const qty = parseFloat(criteria.quantity) || 21.5;
+
+        let targetDate = criteria.date;
+        if (!targetDate) {
+            const tom = new Date();
+            tom.setDate(tom.getDate() + 1);
+            targetDate = tom.toISOString().split("T")[0];
+        }
+
+        const todayStr = new Date().toISOString().split("T")[0];
+        if (targetDate < todayStr) {
+            return {
+                success: false,
+                error: "PAST_DATE",
+                message: "Please select today or a future date for slot booking.",
+                recommendations: []
+            };
+        }
+
+        const scoredSlots = STANDARD_SLOTS.map(slot => {
+            return calculateSlotCongestion(centre, targetDate, slot, crop, qty);
+        });
+
+        scoredSlots.sort((a, b) => b.compositeScore - a.compositeScore);
+
+        const recommended = scoredSlots[0];
+        const alternative = scoredSlots[1];
+        const avoid = scoredSlots[scoredSlots.length - 1];
+
+        return {
+            success: true,
+            criteria: { crop, centre, date: targetDate, quantity: qty },
+            recommended,
+            alternative,
+            avoid,
+            allSlots: scoredSlots
+        };
+    }
+
+    function openSmartSlotModal(prefillCriteria = {}) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const defaultDate = prefillCriteria.date || tomorrow.toISOString().split("T")[0];
+        const defaultCrop = prefillCriteria.crop || (typeof currentBooking !== "undefined" && currentBooking ? currentBooking.crop : "Paddy / Rice");
+        const defaultQty = prefillCriteria.quantity || 21.5;
+        const defaultCentre = prefillCriteria.centre || "AP State Procurement Centre";
+
+        const content = `
+            <div class="smart-slot-wrapper">
+                
+                <!-- Advisory Banner -->
+                <div class="ai-advisory-banner" style="background:#f0f9ff; border-color:#bae6fd; color:#0369a1;">
+                    <i class="fa-solid fa-robot"></i>
+                    <div>
+                        <strong>AI-Assisted Smart Slot & Congestion Optimizer</strong>
+                        <p style="margin:2px 0 0; font-size:11.5px; opacity:0.9;">
+                            Analyzes live yard queue backlog, registered booking volume, and weighbridge capacity to predict lowest waiting times.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Interactive Filter Criteria -->
+                <div class="smart-criteria-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <strong style="font-size:13px; color:#1e293b;">
+                            <i class="fa-solid fa-sliders" style="color:#0284c7;"></i> Select Criteria for Smart Recommendation
+                        </strong>
+                    </div>
+
+                    <div class="smart-criteria-grid">
+                        <div class="smart-param-box">
+                            <label><i class="fa-solid fa-wheat-awn"></i> Crop</label>
+                            <select id="smart-crop-select" onchange="KisanCongestionAI.refreshSmartSlotResults()">
+                                <option value="Paddy / Rice" ${defaultCrop.includes("Paddy") ? 'selected' : ''}>Paddy / Rice</option>
+                                <option value="Wheat" ${defaultCrop.includes("Wheat") ? 'selected' : ''}>Wheat</option>
+                                <option value="Cotton" ${defaultCrop.includes("Cotton") ? 'selected' : ''}>Cotton</option>
+                                <option value="Maize" ${defaultCrop.includes("Maize") ? 'selected' : ''}>Maize</option>
+                                <option value="Groundnut" ${defaultCrop.includes("Groundnut") ? 'selected' : ''}>Groundnut</option>
+                                <option value="Mustard / Pulses" ${defaultCrop.includes("Mustard") ? 'selected' : ''}>Mustard</option>
+                            </select>
+                        </div>
+
+                        <div class="smart-param-box">
+                            <label><i class="fa-solid fa-building"></i> Centre</label>
+                            <select id="smart-centre-select" onchange="KisanCongestionAI.refreshSmartSlotResults()">
+                                <option value="AP State Procurement Centre" selected>AP State Centre (Yard 1)</option>
+                                <option value="District Food Grain Hub">District Hub (Yard 2)</option>
+                            </select>
+                        </div>
+
+                        <div class="smart-param-box">
+                            <label><i class="fa-solid fa-calendar-day"></i> Preferred Date</label>
+                            <input type="date" id="smart-date-input" value="${defaultDate}" onchange="KisanCongestionAI.refreshSmartSlotResults()"/>
+                        </div>
+
+                        <div class="smart-param-box">
+                            <label><i class="fa-solid fa-weight-hanging"></i> Quantity (Q)</label>
+                            <input type="number" id="smart-qty-input" value="${defaultQty}" min="1" step="0.5" onchange="KisanCongestionAI.refreshSmartSlotResults()"/>
+                        </div>
+                    </div>
+
+                    <button type="button" class="smart-find-btn" onclick="KisanCongestionAI.refreshSmartSlotResults()">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Recalculate Best Slot Recommendation
+                    </button>
+                </div>
+
+                <!-- Results Target Container -->
+                <div id="smart-slot-results-target">
+                    <!-- Populated dynamically -->
+                </div>
+
+            </div>
+        `;
+
+        openModal(t("smartSlotTitle") || "Smart Procurement Slot Recommendation", content);
+
+        setTimeout(() => {
+            refreshSmartSlotResults();
+        }, 100);
+    }
+
+    function refreshSmartSlotResults() {
+        const crop = document.getElementById("smart-crop-select")?.value || "Paddy / Rice";
+        const centre = document.getElementById("smart-centre-select")?.value || "AP State Procurement Centre";
+        const date = document.getElementById("smart-date-input")?.value;
+        const qty = parseFloat(document.getElementById("smart-qty-input")?.value) || 21.5;
+
+        const res = recommendProcurementSlot({ crop, centre, date, quantity: qty });
+        const target = document.getElementById("smart-slot-results-target");
+        if (!target) return;
+
+        if (!res.success) {
+            target.innerHTML = `
+                <div style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; padding:14px; border-radius:10px; font-size:12.5px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> ${res.message}
+                </div>
+            `;
+            return;
+        }
+
+        const renderCardHtml = (slot, roleType, badgeText, badgeClass, iconClass) => {
+            const fillClass = slot.congestionLevel === "LOW" ? "fill-low" : (slot.congestionLevel === "MEDIUM" ? "fill-med" : "fill-high");
+
+            return `
+                <div class="smart-slot-card slot-${roleType}">
+                    <div class="smart-slot-header">
+                        <div>
+                            <span class="smart-slot-badge ${badgeClass}">
+                                <i class="fa-solid ${iconClass}"></i> ${badgeText}
+                            </span>
+                            <div class="smart-slot-time" style="margin-top:4px;">
+                                <i class="fa-solid fa-clock" style="color:#0284c7;"></i> ${slot.timeSlot}
+                            </div>
+                        </div>
+
+                        <div>
+                            <span class="congestion-pill ${slot.congestionClass}">
+                                ${slot.congestionLevel} LOAD
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid -->
+                    <div class="smart-slot-metrics-row">
+                        <div class="smart-metric-item">
+                            <div class="smart-metric-label">Est. Waiting</div>
+                            <div class="smart-metric-value" style="color:#0284c7;">~${slot.waitMins} min</div>
+                        </div>
+                        <div class="smart-metric-item">
+                            <div class="smart-metric-label">Expected Load</div>
+                            <div class="smart-metric-value">${slot.expectedTrucks} Trucks</div>
+                        </div>
+                        <div class="smart-metric-item">
+                            <div class="smart-metric-label">Slot Capacity</div>
+                            <div class="smart-metric-value">${slot.utilizationPct}% Filled</div>
+                        </div>
+                    </div>
+
+                    <!-- Capacity Bar -->
+                    <div class="slot-capacity-container">
+                        <div class="slot-capacity-labels">
+                            <span>Capacity Utilization</span>
+                            <strong>${slot.expectedTrucks} / ${slot.capacity} Trucks</strong>
+                        </div>
+                        <div class="slot-capacity-bar-bg">
+                            <div class="slot-capacity-bar-fill ${fillClass}" style="width:${slot.utilizationPct}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Explainability Reasons -->
+                    <div class="slot-why-box">
+                        <div class="slot-why-title">
+                            <i class="fa-solid fa-circle-question"></i> Why this slot?
+                        </div>
+                        <ul class="slot-why-list">
+                            ${slot.whyBullets.map(b => `
+                                <li class="slot-why-item ${b.type}">${b.text}</li>
+                            `).join("")}
+                        </ul>
+                    </div>
+
+                    <!-- Book Slot Button -->
+                    <button type="button" class="slot-book-action-btn" onclick="KisanCongestionAI.bookRecommendedSlot('${crop.replace(/'/g, "\\'")}', ${qty}, '${centre.replace(/'/g, "\\'")}', '${date}', '${slot.timeSlot}')">
+                        <i class="fa-solid fa-calendar-check"></i> Book Slot (${slot.timeSlot})
+                    </button>
+                </div>
+            `;
+        };
+
+        target.innerHTML = `
+            <div class="smart-recommendations-list">
+                <div style="font-size:12px; font-weight:700; color:#475569; margin:4px 0 2px;">
+                    <i class="fa-solid fa-ranking-star" style="color:#f59e0b;"></i> RANKED RECOMMENDATIONS FOR ${res.criteria.date}:
+                </div>
+
+                ${renderCardHtml(res.recommended, 'recommended', '★ Best Recommended Slot', 'badge-recommended', 'fa-star')}
+                ${renderCardHtml(res.alternative, 'alternative', 'ℹ Good Alternative', 'badge-alternative', 'fa-thumbs-up')}
+                ${renderCardHtml(res.avoid, 'avoid', '⚠ Avoid (Peak Bottleneck)', 'badge-avoid', 'fa-triangle-exclamation')}
+            </div>
+        `;
+    }
+
+    function bookRecommendedSlot(crop, quantity, centre, date, time) {
+        closeModal();
+
+        const bookingId = generateBookingID ? generateBookingID() : "KS" + Math.floor(100000 + Math.random() * 900000);
+        const tokenNo = String(Math.floor(5 + Math.random() * 8)).padStart(2, '0');
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : { name: "Ramesh Kumar", farmerId: "KS102458" };
+        const bookedDate = date || "Tomorrow";
+
+        let mspRate = 2300;
+        if (crop && crop.includes("Wheat")) mspRate = 2275;
+        else if (crop && crop.includes("Cotton")) mspRate = 7121;
+        const totalAmount = "₹" + Math.round((quantity || 21.5) * mspRate).toLocaleString("en-IN");
+
+        currentBooking = {
+            id: bookingId,
+            crop: crop || "Paddy / Rice",
+            quantity: quantity || 21.5,
+            centre: centre || "AP State Procurement Centre",
+            date: bookedDate,
+            time: time || "10:30 AM",
+            vehicleType: "Tractor Trolley",
+            vehicleNo: "AP-07-TY-4920",
+            token: tokenNo,
+            status: "Confirmed",
+            amount: totalAmount,
+            timestamp: Date.now()
+        };
+
+        if (typeof bookingHistory !== "undefined" && Array.isArray(bookingHistory)) {
+            bookingHistory.unshift({
+                id: bookingId,
+                crop: currentBooking.crop,
+                quantity: currentBooking.quantity,
+                date: bookedDate,
+                time: currentBooking.time,
+                centre: currentBooking.centre,
+                status: "Confirmed",
+                amount: totalAmount,
+                token: "KS-" + tokenNo
+            });
+            if (typeof saveBookingHistory === "function") saveBookingHistory();
+        }
+
+        const yardEntry = {
+            id: bookingId,
+            token: tokenNo,
+            farmerId: user.farmerId || "KS102458",
+            farmerName: user.name || "Ramesh Kumar",
+            crop: currentBooking.crop,
+            quantity: currentBooking.quantity,
+            vehicleNo: "AP-07-TY-4920",
+            vehicleType: "Tractor Trolley",
+            gatePassId: "GP-2026-" + bookingId.replace("KS", ""),
+            time: currentBooking.time,
+            stage: "Gate In (Waiting)",
+            stageCode: "gate_in",
+            moisture: "Pending",
+            amount: totalAmount,
+            status: "In Queue"
+        };
+
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            yardQueueData = yardQueueData.filter(f => f.id !== bookingId && f.farmerId !== user.farmerId);
+            yardQueueData.unshift(yardEntry);
+            if (typeof saveYardQueue === "function") saveYardQueue();
+        }
+
+        if (typeof KisanNotifications !== "undefined") {
+            KisanNotifications.addNotification({
+                type: KisanEvents.FARMER_SLOT_BOOKED,
+                title: "Smart Slot Confirmed",
+                message: `Recommended slot booked for ${currentBooking.quantity} Q ${currentBooking.crop} at ${currentBooking.time}. Token #${tokenNo} issued.`,
+                targetRole: "farmer",
+                icon: "fa-calendar-check",
+                badgeType: "success",
+                entity: { tokenId: tokenNo, crop: currentBooking.crop, quantity: currentBooking.quantity, date: bookedDate, time: currentBooking.time, centre: currentBooking.centre }
+            });
+        }
+
+        if (typeof KisanSync !== "undefined") {
+            KisanSync.publish(KisanEvents.FARMER_SLOT_BOOKED, {
+                booking: currentBooking,
+                farmer: user,
+                yardEntry: yardEntry
+            });
+        }
+
+        if (typeof updateDashboardAfterBooking === "function") updateDashboardAfterBooking();
+        renderOfficerCongestionDashboard();
+
+        setTimeout(() => {
+            if (typeof openBookingConfirmation === "function") {
+                openBookingConfirmation(currentBooking);
+            }
+            showToast(`✓ Smart Slot Confirmed! Gate Pass: ${bookingId}. Token: #${tokenNo}`, "success");
+        }, 300);
+    }
+
+    function renderOfficerCongestionDashboard() {
+        const target = document.getElementById("officer-congestion-target");
+        if (!target) return;
+
+        const centre = "AP State Procurement Centre (Yard 1)";
+        const queueBacklog = getLiveQueueBacklog(centre);
+        const bookedCounts = getBookedCountsBySlot(centre, "Tomorrow");
+        let totalBookedToday = 0;
+        Object.values(bookedCounts).forEach(v => totalBookedToday += v);
+
+        const recData = recommendProcurementSlot({ centre });
+        const allSlots = recData.allSlots || [];
+
+        let overallMandiLoad = "LOW";
+        let overallLoadClass = "congestion-pill-low";
+        if (queueBacklog > 6 || totalBookedToday >= 25) {
+            overallMandiLoad = "HIGH";
+            overallLoadClass = "congestion-pill-high";
+        } else if (queueBacklog >= 3 || totalBookedToday >= 12) {
+            overallMandiLoad = "MEDIUM";
+            overallLoadClass = "congestion-pill-med";
+        }
+
+        target.innerHTML = `
+            <!-- Top Summary Stats Row -->
+            <div class="congestion-stats-row">
+                <div class="congestion-stat-item">
+                    <div class="congestion-stat-title">Current Mandi Load</div>
+                    <div class="congestion-stat-value">
+                        <span class="congestion-pill ${overallLoadClass}">${overallMandiLoad} LOAD</span>
+                    </div>
+                    <div class="congestion-stat-sub">Based on queue backlog & slot capacity</div>
+                </div>
+
+                <div class="congestion-stat-item">
+                    <div class="congestion-stat-title">Active Yard Queue</div>
+                    <div class="congestion-stat-value" style="color:#0f766e;">
+                        <i class="fa-solid fa-truck"></i> ${queueBacklog} Trucks
+                    </div>
+                    <div class="congestion-stat-sub">Estimated yard clearance: ~${Math.max(10, queueBacklog * 8)} mins</div>
+                </div>
+
+                <div class="congestion-stat-item">
+                    <div class="congestion-stat-title">Registered Active Bookings</div>
+                    <div class="congestion-stat-value" style="color:#0284c7;">
+                        <i class="fa-solid fa-calendar-check"></i> ${totalBookedToday} Farmers
+                    </div>
+                    <div class="congestion-stat-sub">Across all 5 daily operating slots</div>
+                </div>
+            </div>
+
+            <!-- Slots Breakdown Grid -->
+            <div style="padding:14px 20px 6px;">
+                <h4 style="margin:0; font-size:13px; font-weight:800; color:#334155;">
+                    <i class="fa-solid fa-clock-rotate-left" style="color:#0284c7;"></i> Hourly Slot Demand & Waiting Forecast
+                </h4>
+            </div>
+
+            <div class="congestion-slots-grid">
+                ${allSlots.map(s => {
+                    const miniClass = s.congestionLevel === "LOW" ? "mini-low" : (s.congestionLevel === "MEDIUM" ? "mini-med" : "mini-high");
+                    const fillClass = s.congestionLevel === "LOW" ? "fill-low" : (s.congestionLevel === "MEDIUM" ? "fill-med" : "fill-high");
+
+                    return `
+                        <div class="congestion-slot-mini-card ${miniClass}">
+                            <div class="congestion-slot-mini-header">
+                                <span class="mini-time"><i class="fa-regular fa-clock"></i> ${s.timeSlot}</span>
+                                <span class="congestion-pill ${s.congestionClass}" style="font-size:9.5px; padding:1px 6px;">${s.congestionLevel}</span>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; font-size:11.5px; margin:6px 0;">
+                                <span style="color:#64748b;">Expected: <strong>${s.expectedTrucks} Trucks</strong></span>
+                                <span style="color:#0369a1; font-weight:700;">~${s.waitMins}m wait</span>
+                            </div>
+
+                            <div class="slot-capacity-bar-bg" style="height:5px;">
+                                <div class="slot-capacity-bar-fill ${fillClass}" style="width:${s.utilizationPct}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join("")}
+            </div>
+        `;
+    }
+
+    return {
+        STANDARD_SLOTS,
+        getLiveQueueBacklog,
+        getBookedCountsBySlot,
+        calculateSlotCongestion,
+        recommendProcurementSlot,
+        openSmartSlotModal,
+        refreshSmartSlotResults,
+        bookRecommendedSlot,
+        renderOfficerCongestionDashboard
+    };
+})();
+
+// Global accessible wrappers for Task 06
+function openSmartSlotModal(prefillCriteria) {
+    KisanCongestionAI.openSmartSlotModal(prefillCriteria);
+}
+
+function renderOfficerCongestionDashboard() {
+    KisanCongestionAI.renderOfficerCongestionDashboard();
+}
+
+/* =========================================================
    1. MULTI-LANGUAGE TRANSLATION DICTIONARIES
 ========================================================= */
 
 const translations = {
     English: {
+        smartSlotNav: "Smart Slot AI",
+        quickSmartSlot: "Smart Slot AI",
+        quickSmartSlotDesc: "Least waiting time slot prediction",
+        navCongestionForecast: "Congestion Forecast",
+        mandiCongestionBtn: "Mandi Congestion Forecast",
+        congestionCardTitle: "Mandi Congestion & Demand Forecast",
+        congestionCardDesc: "Live yard backlog & scheduled slot capacity analysis",
+        smartSlotTitle: "AI-Assisted Smart Procurement Slot Recommendation",
+        findBestSlotBtn: "Find Best Low-Wait Slot",
         aiQualityInspection: "AI Quality Inspection",
         aiQualityInspectionBtn: "AI Quality Inspection",
         aiQualityInspectionTitle: "AI-Assisted Grain Quality Assessment",
@@ -3489,6 +4129,15 @@ const translations = {
         cancelBtn: "Cancel"
     },
     Hindi: {
+        smartSlotNav: "स्मार्ट स्लॉट AI",
+        quickSmartSlot: "स्मार्ट स्लॉट AI",
+        quickSmartSlotDesc: "न्यूनतम प्रतीक्षा समय स्लॉट भविष्यवाणी",
+        navCongestionForecast: "मंडी भीड़ पूर्वानुमान",
+        mandiCongestionBtn: "मंडी भीड़ पूर्वानुमान",
+        congestionCardTitle: "मंडी भीड़ एवं स्लॉट मांग पूर्वानुमान",
+        congestionCardDesc: "लाइव यार्ड कतार व निर्धारित स्लॉट क्षमता विश्लेषण",
+        smartSlotTitle: "एआई-सहायता प्राप्त स्मार्ट स्लॉट सिफारिश",
+        findBestSlotBtn: "सर्वश्रेष्ठ कम प्रतीक्षा स्लॉट खोजें",
         aiQualityInspection: "एआई गुणवत्ता जांच",
         aiQualityInspectionBtn: "एआई गुणवत्ता जांच",
         aiQualityInspectionTitle: "एआई-सहायता प्राप्त अनाज गुणवत्ता मूल्यांकन",
@@ -3755,6 +4404,15 @@ const translations = {
         cancelBtn: "रद्द करें"
     },
     Telugu: {
+        smartSlotNav: "స్మార్ట్ స్లాట్ AI",
+        quickSmartSlot: "స్మార్ట్ స్లాట్ AI",
+        quickSmartSlotDesc: "తక్కువ నిరీక్షణ సమయ స్లాట్ అంచనా",
+        navCongestionForecast: "మార్కెట్ రద్దీ అంచనా",
+        mandiCongestionBtn: "మార్కెట్ రద్దీ అంచనా",
+        congestionCardTitle: "మార్కెట్ రద్దీ & స్లాట్ డిమాండ్ అంచనా",
+        congestionCardDesc: "ప్రత్యక్ష యార్డ్ క్యూ & షెడ్యూల్ స్లాట్ సామర్థ్య విశ్లేషణ",
+        smartSlotTitle: "AI-ఆధారిత స్మార్ట్ స్లాట్ సిఫార్సు",
+        findBestSlotBtn: "తక్కువ వెయిటింగ్ స్లాట్ కనుగొనండి",
         aiQualityInspection: "AI నాణ్యత తనిఖీ",
         aiQualityInspectionBtn: "AI నాణ్యత తనిఖీ",
         aiQualityInspectionTitle: "AI ప్రాథమిక ధాన్యం నాణ్యత అంచనా",
@@ -4021,6 +4679,15 @@ const translations = {
         cancelBtn: "రద్దు చేయండి"
     },
     Tamil: {
+        smartSlotNav: "ஸ்மார்ட் ஸ்லாட் AI",
+        quickSmartSlot: "ஸ்மார்ட் ஸ்லாட் AI",
+        quickSmartSlotDesc: "குறைந்த காத்திருப்பு நேர ஸ்லாட் பரிந்துரை",
+        navCongestionForecast: "மண்டி நெரிசல் முன்னறிவிப்பு",
+        mandiCongestionBtn: "மண்டி நெரிசல் முன்னறிவிப்பு",
+        congestionCardTitle: "மண்டி நெரிசல் & ஸ்லாட் தேவை முன்னறிவிப்பு",
+        congestionCardDesc: "நேரலை யார்டு வரிசை மற்றும் ஸ்லாட் திறன் பகுப்பாய்வு",
+        smartSlotTitle: "AI-உதவி ஸ்மார்ட் ஸ்லாட் பரிந்துரை",
+        findBestSlotBtn: "குறைந்த காத்திருப்பு ஸ்லாட்டைக் கண்டறியவும்",
         aiQualityInspection: "AI தர ஆய்வு",
         aiQualityInspectionBtn: "AI தர ஆய்வு",
         aiQualityInspectionTitle: "AI தானிய தர மதிப்பீடு",
@@ -4286,6 +4953,15 @@ const translations = {
         cancelBtn: "ரத்து செய்"
     },
     Kannada: {
+        smartSlotNav: "ಸ್ಮಾರ್ಟ್ ಸ್ಲಾಟ್ AI",
+        quickSmartSlot: "ಸ್ಮಾರ್ಟ್ ಸ್ಲಾಟ್ AI",
+        quickSmartSlotDesc: "ಕಡಿಮೆ ಕಾಯುವ ಸಮಯದ ಸ್ಲಾಟ್ ಭವಿಷ್ಯ",
+        navCongestionForecast: "ಮಂಡಿ ದಟ್ಟಣೆ ಮುನ್ಸೂಚನೆ",
+        mandiCongestionBtn: "ಮಂಡಿ ದಟ್ಟಣೆ ಮುನ್ಸೂಚನೆ",
+        congestionCardTitle: "ಮಂಡಿ ದಟ್ಟಣೆ & ಸ್ಲಾಟ್ ಬೇಡಿಕೆ ಮುನ್ಸೂಚನೆ",
+        congestionCardDesc: "ಲೈವ್ ಯಾರ್ಡ್ ಕ್ಯೂ & ನಿಗದಿತ ಸ್ಲಾಟ್ ಸಾಮರ್ಥ್ಯ ವಿಶ್ಲೇಷಣೆ",
+        smartSlotTitle: "AI-ಸಹಾಯದ ಸ್ಮಾರ್ಟ್ ಸ್ಲಾಟ್ ಶಿಫಾರಸು",
+        findBestSlotBtn: "ಉತ್ತಮ ಕಡಿಮೆ ಕಾಯುವ ಸ್ಲಾಟ್ ಹುಡುಕಿ",
         aiQualityInspection: "AI ಗುಣಮಟ್ಟ ತಪಾಸಣೆ",
         aiQualityInspectionBtn: "AI ಗುಣಮಟ್ಟ ತಪಾಸಣೆ",
         aiQualityInspectionTitle: "AI ಧಾನ್ಯ ಗುಣಮಟ್ಟ ಮೌಲ್ಯಮಾಪನ",
@@ -4551,6 +5227,15 @@ const translations = {
         cancelBtn: "ರದ್ದುಮಾಡಿ"
     },
     Malayalam: {
+        smartSlotNav: "സ്മാർട്ട് സ്ലോട്ട് AI",
+        quickSmartSlot: "സ്മാർട്ട് സ്ലോട്ട് AI",
+        quickSmartSlotDesc: "ഏറ്റവും കുറഞ്ഞ കാത്തിരിപ്പ് സ്ലോട്ട് പ്രവചനം",
+        navCongestionForecast: "മാർക്കറ്റ് തിരക്ക് പ്രവചനം",
+        mandiCongestionBtn: "മാർക്കറ്റ് തിരക്ക് പ്രവചനം",
+        congestionCardTitle: "മാർക്കറ്റ് തിരക്ക് & സ്ലോട്ട് ഡിമാൻഡ് പ്രവചനം",
+        congestionCardDesc: "തത്സമയ യാർഡ് ക്യൂ & സ്ലോട്ട് ശേഷി വിശകലനം",
+        smartSlotTitle: "AI-സഹായത്തോടെയുള്ള സ്മാർട്ട് സ്ലോട്ട് ശുപാർശ",
+        findBestSlotBtn: "മികച്ച കുറഞ്ഞ കാത്തിരിപ്പ് സ്ലോട്ട് കണ്ടെത്തുക",
         aiQualityInspection: "AI ഗുണനിലവാര പരിശോധന",
         aiQualityInspectionBtn: "AI ഗുണനിലവാര പരിശോധന",
         aiQualityInspectionTitle: "AI ധാന്യ ഗുണനിലവാര വിലയിരുത്തൽ",
@@ -4919,6 +5604,7 @@ function renderDashboardForRole() {
         if (pageSub) pageSub.textContent = "Live yard queue control, weighbridge intake & DBT approvals.";
         renderOfficerQueueTable();
         updateOfficerStats();
+        renderOfficerCongestionDashboard();
     } else {
         if (officerView) officerView.style.display = "none";
         if (farmerView) farmerView.style.display = "block";

@@ -60,12 +60,17 @@
                         <span data-language-key="dashboard">Dashboard</span>
                     </a>
 
-                    <a href="#" class="nav-item" data-action="booking">
-                        <i class="fa-solid fa-calendar-check"></i>
+                    <a href="#" class="nav-item" data-action="book" onclick="openBooking(); return false;">
+                        <i class="fa-solid fa-calendar-plus"></i>
                         <span data-language-key="book">Book a Slot</span>
                     </a>
 
-                    <a href="#" class="nav-item" data-action="tracker">
+                    <a href="#" class="nav-item" data-action="smart-slot" onclick="openSmartSlotModal(); return false;">
+                        <i class="fa-solid fa-wand-magic-sparkles" style="color:#0284c7;"></i>
+                        <span data-language-key="smartSlotNav">Smart Slot AI</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="track" onclick="openTracker(); return false;">
                         <i class="fa-solid fa-location-dot"></i>
                         <span data-language-key="track">Track Procurement</span>
                     </a>
@@ -126,6 +131,11 @@
                     <a href="#" class="nav-item" data-action="officer-queue" onclick="scrollToOfficerSection('officer-queue-section'); return false;">
                         <i class="fa-solid fa-list-check"></i>
                         <span data-language-key="navQueueManagement">Queue Management</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-congestion" onclick="scrollToOfficerSection('officer-congestion-section'); return false;">
+                        <i class="fa-solid fa-chart-line" style="color:#0284c7;"></i>
+                        <span data-language-key="navCongestionForecast">Congestion Forecast</span>
                     </a>
 
                     <a href="#" class="nav-item" data-action="officer-records" onclick="openFarmerRecordsModal(); return false;">
@@ -489,6 +499,17 @@
 
                             <div class="quick-actions">
 
+                                <button class="quick-action" onclick="openSmartSlotModal()">
+                                    <div class="quick-action-icon" style="background:#f0f9ff; color:#0284c7;">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="quickSmartSlot">Smart Slot AI</strong>
+                                        <span data-language-key="quickSmartSlotDesc">Find lowest crowd time & avoid queue</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
                                 <button class="quick-action" onclick="openBooking()">
                                     <div class="quick-action-icon">
                                         <i class="fa-solid fa-calendar-plus"></i>
@@ -768,6 +789,9 @@
                             <button type="button" class="op-btn op-btn-inspect-top" onclick="openQualityInspectionModal()" style="background:#0f766e; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-microscope"></i> <span data-language-key="aiQualityInspectionBtn">AI Quality Inspection</span>
                             </button>
+                            <button type="button" class="op-btn op-btn-congestion" onclick="scrollToOfficerSection('officer-congestion-section')" style="background:#0369a1; color:#fff; font-weight:700;">
+                                <i class="fa-solid fa-chart-simple"></i> <span data-language-key="mandiCongestionBtn">Congestion Forecast</span>
+                            </button>
                             <button type="button" class="op-btn op-btn-call" onclick="officerAdvanceNextQueue()">
                                 <i class="fa-solid fa-bullhorn"></i> <span data-language-key="callNextFarmerBtn">Call Next Farmer</span>
                             </button>
@@ -780,6 +804,28 @@
                             <button type="button" class="op-btn op-btn-reset" onclick="resetOfficerYardQueue()">
                                 <i class="fa-solid fa-rotate-left"></i> <span data-language-key="resetDemoQueueBtn">Reset Demo Queue</span>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Mandi Congestion & Demand Forecast Section -->
+                    <div class="dashboard-card officer-congestion-card" id="officer-congestion-section">
+                        <div class="card-header">
+                            <div>
+                                <h3 data-language-key="congestionCardTitle">Mandi Congestion & Demand Forecast</h3>
+                                <p data-language-key="congestionCardDesc">Real-time yard congestion index, capacity utilization, and hourly truck arrival forecast.</p>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span class="live-pill" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd;">
+                                    <i class="fa-solid fa-robot"></i> Data-Driven AI Estimate
+                                </span>
+                                <button type="button" class="scanner-demo-chip" style="margin:0; padding:4px 10px; font-size:11px;" onclick="renderOfficerCongestionDashboard()">
+                                    <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="congestion-body" id="officer-congestion-target">
+                            <!-- Populated dynamically by script.js -->
                         </div>
                     </div>
 
