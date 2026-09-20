@@ -93,6 +93,11 @@
                         <span class="notification-count" id="sidebar-notification-badge">3</span>
                     </a>
 
+                    <a href="#" class="nav-item" data-action="farmer-quality" onclick="openFarmerQualityModal(); return false;">
+                        <i class="fa-solid fa-microscope"></i>
+                        <span data-language-key="quickQualityReport">Quality Assessment</span>
+                    </a>
+
                     <a href="#" class="nav-item" data-action="centre">
                         <i class="fa-solid fa-building"></i>
                         <span data-language-key="centre">Procurement Centres</span>
@@ -136,6 +141,11 @@
                     <a href="#" class="nav-item" data-action="officer-scan-qr" onclick="openOfficerQRScannerModal(); return false;">
                         <i class="fa-solid fa-qrcode"></i>
                         <span data-language-key="scanFarmerQR">Scan Farmer QR</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-ai-inspect" onclick="openQualityInspectionModal(); return false;">
+                        <i class="fa-solid fa-microscope"></i>
+                        <span data-language-key="aiQualityInspection">AI Quality Inspection</span>
                     </a>
 
                     <a href="#" class="nav-item" data-action="officer-notifications" onclick="openNotifications(); return false;">
@@ -507,6 +517,17 @@
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
 
+                                <button class="quick-action" onclick="openFarmerQualityModal()">
+                                    <div class="quick-action-icon" style="background:#e0f2fe; color:#0369a1;">
+                                        <i class="fa-solid fa-microscope"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="quickQualityReport">AI Quality Assessment</strong>
+                                        <span data-language-key="quickQualityReportDesc">View grain grade & defect report</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
                                 <button class="quick-action" onclick="openProcurementReceiptModal()">
                                     <div class="quick-action-icon" style="background:#e8f5ed; color:#174d32;">
                                         <i class="fa-solid fa-receipt"></i>
@@ -727,6 +748,9 @@
                         <div class="operator-buttons">
                             <button type="button" class="op-btn op-btn-scan" onclick="openOfficerQRScannerModal()" style="background:#174d32; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-qrcode"></i> <span data-language-key="scanFarmerQRBtn">Scan Farmer QR</span>
+                            </button>
+                            <button type="button" class="op-btn op-btn-inspect-top" onclick="openQualityInspectionModal()" style="background:#0f766e; color:#fff; font-weight:700;">
+                                <i class="fa-solid fa-microscope"></i> <span data-language-key="aiQualityInspectionBtn">AI Quality Inspection</span>
                             </button>
                             <button type="button" class="op-btn op-btn-call" onclick="officerAdvanceNextQueue()">
                                 <i class="fa-solid fa-bullhorn"></i> <span data-language-key="callNextFarmerBtn">Call Next Farmer</span>
