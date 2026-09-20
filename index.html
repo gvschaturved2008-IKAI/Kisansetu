@@ -123,6 +123,12 @@
                         <i class="fa-solid fa-bullhorn"></i>
                         <span data-language-key="navBroadcastTool">Broadcast Alert</span>
                     </a>
+
+                    <a href="#" class="nav-item" data-action="officer-notifications" onclick="openNotifications(); return false;">
+                        <i class="fa-solid fa-bell"></i>
+                        <span data-language-key="notifications">Notifications</span>
+                        <span class="notification-count" id="sidebar-officer-notification-badge">0</span>
+                    </a>
                 </div>
 
             </nav>
@@ -200,9 +206,10 @@
                     </button>
 
                     <!-- Notifications Button -->
-                    <button class="icon-button notification-button" id="topbar-notif-btn" onclick="openNotifications()" title="Notifications">
+                    <button class="icon-button notification-button" id="topbar-notif-btn" onclick="openNotifications()" title="Notifications" aria-label="Notifications">
                         <i class="fa-regular fa-bell"></i>
                         <span class="notification-dot" id="topbar-notif-dot"></span>
+                        <span class="notification-badge-pill" id="topbar-notif-badge" style="display: none;">0</span>
                     </button>
 
                     <!-- Farmer Profile Widget -->

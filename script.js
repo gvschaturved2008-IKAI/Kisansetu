@@ -18,15 +18,20 @@ const KISAN_SYNC_STORAGE_KEY = "kisan_setu_bus_event";
 const KisanEvents = {
     FARMER_SLOT_BOOKED: "FARMER_SLOT_BOOKED",
     FARMER_SLOT_CANCELLED: "FARMER_SLOT_CANCELLED",
-    FARMER_PROCUREMENT_COMPLETED: "FARMER_PROCUREMENT_COMPLETED",
+    FARMER_QUEUE_UPDATED: "FARMER_QUEUE_UPDATED",
+    FARMER_CHECK_IN: "FARMER_CHECK_IN",
+    QR_VERIFIED: "QR_VERIFIED",
+    QUALITY_INSPECTION_STARTED: "QUALITY_INSPECTION_STARTED",
+    QUALITY_APPROVED: "QUALITY_APPROVED",
+    PROCUREMENT_COMPLETED: "PROCUREMENT_COMPLETED",
+    PAYMENT_UPDATED: "PAYMENT_UPDATED",
     OFFICER_STAGE_ADVANCED: "OFFICER_STAGE_ADVANCED",
     OFFICER_TOKEN_CALLED: "OFFICER_TOKEN_CALLED",
     OFFICER_BROADCAST_SENT: "OFFICER_BROADCAST_SENT",
     OFFICER_SPOT_PASS_ISSUED: "OFFICER_SPOT_PASS_ISSUED",
     OFFICER_TOKEN_CANCELLED: "OFFICER_TOKEN_CANCELLED",
     OFFICER_QUEUE_RESET: "OFFICER_QUEUE_RESET",
-    NOTIFICATION_CREATED: "NOTIFICATION_CREATED",
-    PAYMENT_UPDATED: "PAYMENT_UPDATED"
+    NOTIFICATION_CREATED: "NOTIFICATION_CREATED"
 };
 
 const KisanSync = (function() {
@@ -160,6 +165,459 @@ const KisanSync = (function() {
         onAny,
         sessionId,
         isSupported: () => isBroadcastSupported
+    };
+})();
+
+/* =========================================================
+   KISANNOTIFICATIONS — CENTRALIZED REAL-TIME NOTIFICATION SERVICE
+   Multi-role notifications, localStorage persistence, real-time
+   sync via BroadcastChannel, dynamic badge management, and interactive UI
+========================================================= */
+
+const KISAN_NOTIFICATIONS_STORAGE_KEY = "kisan_setu_notifications_v2";
+
+const KisanNotifications = (function() {
+    let notifications = [];
+    let currentFilter = "all";
+
+    const defaultSeedNotifications = [
+        {
+            id: "notif_seed_1",
+            type: "OFFICER_TOKEN_CALLED",
+            title: "Queue Alert: Weighbridge Counter 2 Ready",
+            message: "Your Token #KS-07 has been called at AP State Centre Counter 2. Please proceed for weighing.",
+            timestamp: Date.now() - 10 * 60 * 1000,
+            time: "10 mins ago",
+            targetRole: "farmer",
+            read: false,
+            icon: "fa-bullhorn",
+            badgeType: "warning",
+            entity: { tokenId: "KS-07", gate: "Counter 2" }
+        },
+        {
+            id: "notif_seed_2",
+            type: "PAYMENT_UPDATED",
+            title: "DBT Payment Batch Initiated (₹48,650)",
+            message: "Sanction order generated for 21.5 Quintals Paddy under DoCA MSP. Funds in transit to your SBI account.",
+            timestamp: Date.now() - 60 * 60 * 1000,
+            time: "1 hour ago",
+            targetRole: "farmer",
+            read: false,
+            icon: "fa-indian-rupee-sign",
+            badgeType: "dbt",
+            entity: { amount: "₹48,650.00", bank: "SBI", crop: "Paddy" }
+        },
+        {
+            id: "notif_seed_3",
+            type: "FARMER_SLOT_BOOKED",
+            title: "Slot Confirmation for 27 Aug 10:30 AM",
+            message: "Digital gate pass #KS748291 generated. Mandi entrance access granted.",
+            timestamp: Date.now() - 3 * 3600 * 1000,
+            time: "Today · 09:42 AM",
+            targetRole: "farmer",
+            read: false,
+            icon: "fa-calendar-check",
+            badgeType: "success",
+            entity: { tokenId: "KS748291", date: "27 Aug", time: "10:30 AM" }
+        },
+        {
+            id: "notif_seed_4",
+            type: "WEATHER_ADVISORY",
+            title: "Weather Advisory: Clear skies at Mandi",
+            message: "Optimal harvest and transport conditions for Paddy & Wheat delivery at AP State Mandi.",
+            timestamp: Date.now() - 24 * 3600 * 1000,
+            time: "Yesterday",
+            targetRole: "all",
+            read: true,
+            icon: "fa-cloud-sun",
+            badgeType: "info"
+        },
+        {
+            id: "notif_seed_5",
+            type: "FARMER_SLOT_BOOKED",
+            title: "New Farmer Procurement Request",
+            message: "Ramesh Kumar booked slot for 25.0 Q Paddy (Token #KS-07).",
+            timestamp: Date.now() - 2 * 3600 * 1000,
+            time: "2 hours ago",
+            targetRole: "officer",
+            read: false,
+            icon: "fa-inbox",
+            badgeType: "info",
+            entity: { tokenId: "KS-07", farmerName: "Ramesh Kumar", crop: "Paddy" }
+        },
+        {
+            id: "notif_seed_6",
+            type: "QR_VERIFIED",
+            title: "Farmer Arrival Verified",
+            message: "Venkat Rao (Token #KS-08) verified at Gate 1 for 18.0 Q Wheat.",
+            timestamp: Date.now() - 45 * 60 * 1000,
+            time: "45 mins ago",
+            targetRole: "officer",
+            read: false,
+            icon: "fa-clipboard-check",
+            badgeType: "success",
+            entity: { tokenId: "KS-08", farmerName: "Venkat Rao", crop: "Wheat" }
+        }
+    ];
+
+    function init() {
+        loadNotifications();
+        updateBadges();
+    }
+
+    function loadNotifications() {
+        try {
+            const raw = localStorage.getItem(KISAN_NOTIFICATIONS_STORAGE_KEY);
+            if (raw) {
+                notifications = JSON.parse(raw);
+            } else {
+                notifications = [...defaultSeedNotifications];
+                saveNotifications();
+            }
+        } catch (e) {
+            console.warn("Could not load notifications from localStorage:", e);
+            notifications = [...defaultSeedNotifications];
+        }
+    }
+
+    function saveNotifications() {
+        try {
+            localStorage.setItem(KISAN_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
+        } catch (e) {
+            console.warn("Could not save notifications to localStorage:", e);
+        }
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return "Just now";
+        const diff = Date.now() - timestamp;
+        if (diff < 60000) return "Just now";
+        if (diff < 3600000) return `${Math.floor(diff / 60000)} mins ago`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+        return new Date(timestamp).toLocaleDateString();
+    }
+
+    function addNotification(options) {
+        const {
+            type,
+            title,
+            message,
+            targetRole = "all",
+            icon = "fa-bell",
+            badgeType = "info",
+            entity = null,
+            broadcast = true
+        } = options;
+
+        const notif = {
+            id: "notif_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+            type: type || "GENERAL",
+            title: title || "KisanSetu Notification",
+            message: message || "",
+            timestamp: Date.now(),
+            time: "Just now",
+            targetRole: targetRole,
+            read: false,
+            icon: icon,
+            badgeType: badgeType,
+            entity: entity
+        };
+
+        notifications.unshift(notif);
+        if (notifications.length > 60) {
+            notifications.pop();
+        }
+        saveNotifications();
+        updateBadges();
+
+        if (broadcast && typeof KisanSync !== "undefined") {
+            KisanSync.publish(KisanEvents.NOTIFICATION_CREATED, notif);
+        }
+
+        refreshModalIfOpen();
+        return notif;
+    }
+
+    function insertSyncedNotification(notif) {
+        if (!notif || !notif.id) return;
+        const exists = notifications.some(n => n.id === notif.id);
+        if (!exists) {
+            notifications.unshift(notif);
+            if (notifications.length > 60) notifications.pop();
+            saveNotifications();
+            updateBadges();
+            refreshModalIfOpen();
+        }
+    }
+
+    function has(id) {
+        return notifications.some(n => n.id === id);
+    }
+
+    function getForCurrentRole(filterCategory = "all") {
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : { role: "farmer" };
+        const role = user ? user.role : "farmer";
+
+        let list = notifications.filter(n => {
+            if (n.targetRole === "all") return true;
+            if (role === "officer" || role === "admin") {
+                return n.targetRole === "officer" || n.targetRole === "admin";
+            }
+            return n.targetRole === "farmer";
+        });
+
+        if (filterCategory === "unread") {
+            list = list.filter(n => !n.read);
+        } else if (filterCategory === "procurement") {
+            list = list.filter(n => 
+                n.type === KisanEvents.FARMER_SLOT_BOOKED ||
+                n.type === KisanEvents.FARMER_QUEUE_UPDATED ||
+                n.type === KisanEvents.FARMER_CHECK_IN ||
+                n.type === KisanEvents.QR_VERIFIED ||
+                n.type === KisanEvents.QUALITY_INSPECTION_STARTED ||
+                n.type === KisanEvents.QUALITY_APPROVED ||
+                n.type === KisanEvents.PROCUREMENT_COMPLETED ||
+                n.type === KisanEvents.OFFICER_STAGE_ADVANCED ||
+                n.type === KisanEvents.OFFICER_TOKEN_CALLED ||
+                n.type === KisanEvents.OFFICER_SPOT_PASS_ISSUED ||
+                n.type === KisanEvents.FARMER_SLOT_CANCELLED ||
+                n.type === KisanEvents.OFFICER_TOKEN_CANCELLED
+            );
+        } else if (filterCategory === "payment") {
+            list = list.filter(n => 
+                n.type === KisanEvents.PAYMENT_UPDATED || 
+                n.badgeType === "dbt" ||
+                n.type === "PAYMENT"
+            );
+        }
+
+        return list;
+    }
+
+    function getUnreadCount() {
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : { role: "farmer" };
+        const role = user ? user.role : "farmer";
+        return notifications.filter(n => {
+            const roleMatch = (n.targetRole === "all") ||
+                ((role === "officer" || role === "admin") ? (n.targetRole === "officer" || n.targetRole === "admin") : (n.targetRole === "farmer"));
+            return roleMatch && !n.read;
+        }).length;
+    }
+
+    function markAsRead(id) {
+        const item = notifications.find(n => n.id === id);
+        if (item) {
+            item.read = true;
+            saveNotifications();
+            updateBadges();
+            refreshModalIfOpen();
+        }
+    }
+
+    function markAllAsRead() {
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : { role: "farmer" };
+        const role = user ? user.role : "farmer";
+        notifications.forEach(n => {
+            const roleMatch = (n.targetRole === "all") ||
+                ((role === "officer" || role === "admin") ? (n.targetRole === "officer" || n.targetRole === "admin") : (n.targetRole === "farmer"));
+            if (roleMatch) n.read = true;
+        });
+        saveNotifications();
+        updateBadges();
+        refreshModalIfOpen();
+        showToast(t("allNotifReadSuccess") || "All notifications marked as read.");
+    }
+
+    function clearNotification(id) {
+        notifications = notifications.filter(n => n.id !== id);
+        saveNotifications();
+        updateBadges();
+        refreshModalIfOpen();
+        showToast("Notification removed.");
+    }
+
+    function clearAll() {
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : { role: "farmer" };
+        const role = user ? user.role : "farmer";
+        notifications = notifications.filter(n => {
+            const roleMatch = (n.targetRole === "all") ||
+                ((role === "officer" || role === "admin") ? (n.targetRole === "officer" || n.targetRole === "admin") : (n.targetRole === "farmer"));
+            return !roleMatch;
+        });
+        saveNotifications();
+        updateBadges();
+        refreshModalIfOpen();
+        showToast("All notifications cleared.");
+    }
+
+    function updateBadges() {
+        const count = getUnreadCount();
+        const sidebarFarmerBadge = document.getElementById("sidebar-notification-badge");
+        const sidebarOfficerBadge = document.getElementById("sidebar-officer-notification-badge");
+        const topbarDot = document.getElementById("topbar-notif-dot");
+        const topbarBadge = document.getElementById("topbar-notif-badge");
+
+        if (sidebarFarmerBadge) {
+            sidebarFarmerBadge.textContent = String(count);
+            sidebarFarmerBadge.style.display = count > 0 ? "inline-flex" : "none";
+        }
+        if (sidebarOfficerBadge) {
+            sidebarOfficerBadge.textContent = String(count);
+            sidebarOfficerBadge.style.display = count > 0 ? "inline-flex" : "none";
+        }
+        if (topbarDot) {
+            topbarDot.style.display = count > 0 ? "block" : "none";
+        }
+        if (topbarBadge) {
+            topbarBadge.textContent = String(count);
+            topbarBadge.style.display = count > 0 ? "flex" : "none";
+        }
+    }
+
+    function setFilter(filter) {
+        currentFilter = filter;
+        refreshModalIfOpen();
+    }
+
+    function renderPanelHtml() {
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : { role: "farmer" };
+        const role = user ? user.role : "farmer";
+        const items = getForCurrentRole(currentFilter);
+        const unreadTotal = getUnreadCount();
+
+        const filterTabsHtml = `
+            <div class="notif-filter-bar">
+                <button type="button" class="notif-filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="KisanNotifications.setFilter('all')">
+                    <i class="fa-solid fa-list-ul"></i> ${t("filterAll") || "All"} <span class="notif-filter-count">${getForCurrentRole('all').length}</span>
+                </button>
+                <button type="button" class="notif-filter-btn ${currentFilter === 'unread' ? 'active' : ''}" onclick="KisanNotifications.setFilter('unread')">
+                    <i class="fa-solid fa-envelope"></i> ${t("filterUnread") || "Unread"} <span class="notif-filter-count">${unreadTotal}</span>
+                </button>
+                <button type="button" class="notif-filter-btn ${currentFilter === 'procurement' ? 'active' : ''}" onclick="KisanNotifications.setFilter('procurement')">
+                    <i class="fa-solid fa-truck-ramp-box"></i> ${t("filterProcurement") || "Queue & Mandi"}
+                </button>
+                <button type="button" class="notif-filter-btn ${currentFilter === 'payment' ? 'active' : ''}" onclick="KisanNotifications.setFilter('payment')">
+                    <i class="fa-solid fa-indian-rupee-sign"></i> ${t("filterPayment") || "DBT & Payment"}
+                </button>
+            </div>
+        `;
+
+        const controlsHtml = `
+            <div class="notif-controls-bar">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:12px; font-weight:700; color:#174d32;">
+                        ${(role === "officer" || role === "admin") ? "🏛️ Mandi Officer Alerts" : "🌾 Farmer Live Notifications"}
+                    </span>
+                    ${unreadTotal > 0 ? `<span class="notif-entity-chip" style="background:#e8f5ed; color:#26734d;">${unreadTotal} new</span>` : ''}
+                </div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button type="button" class="text-btn" style="font-size:11.5px;" onclick="playVoiceAnnouncement()">
+                        <i class="fa-solid fa-volume-high"></i>
+                        <span>${t("voiceAlertBtn") || "Voice Alert"}</span>
+                    </button>
+                    <button type="button" class="text-btn" style="font-size:11.5px;" onclick="KisanNotifications.markAllAsRead()">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>${t("markAllRead") || "Mark all read"}</span>
+                    </button>
+                    <button type="button" class="text-btn" style="font-size:11.5px; color:#d32f2f;" onclick="KisanNotifications.clearAll()">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>${t("clearAllNotifs") || "Clear All"}</span>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const listHtml = items.length > 0 ? items.map(n => {
+            const timeAgo = formatTime(n.timestamp);
+            const iconClass = n.icon || "fa-bell";
+            const badgeClass = n.badgeType || "info";
+
+            return `
+                <div class="notif-item-card ${!n.read ? 'unread' : ''}" onclick="KisanNotifications.markAsRead('${n.id}')">
+                    <div class="notif-icon-box ${badgeClass}">
+                        <i class="fa-solid ${iconClass}"></i>
+                    </div>
+                    <div class="notif-content-area">
+                        <div class="notif-header-row">
+                            <h4 class="notif-title-text">${n.title}</h4>
+                            <span class="notif-time-text">${timeAgo}</span>
+                        </div>
+                        <p class="notif-msg-text">${n.message || n.desc || ""}</p>
+                        ${n.entity ? `
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+                                ${n.entity.tokenId ? `<span class="notif-entity-chip"><i class="fa-solid fa-ticket"></i> Token #${n.entity.tokenId}</span>` : ''}
+                                ${n.entity.crop ? `<span class="notif-entity-chip"><i class="fa-solid fa-seedling"></i> ${n.entity.crop}</span>` : ''}
+                                ${n.entity.quantity ? `<span class="notif-entity-chip"><i class="fa-solid fa-weight-hanging"></i> ${n.entity.quantity} Q</span>` : ''}
+                                ${n.entity.amount ? `<span class="notif-entity-chip" style="color:#6b3ba7; background:#f3eefc;"><i class="fa-solid fa-indian-rupee-sign"></i> ${n.entity.amount}</span>` : ''}
+                                ${n.entity.gate ? `<span class="notif-entity-chip"><i class="fa-solid fa-door-open"></i> ${n.entity.gate}</span>` : ''}
+                                ${n.entity.farmerName ? `<span class="notif-entity-chip"><i class="fa-solid fa-user"></i> ${n.entity.farmerName}</span>` : ''}
+                                ${n.entity.moisture ? `<span class="notif-entity-chip"><i class="fa-solid fa-droplet"></i> ${n.entity.moisture}</span>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="notif-actions-col" onclick="event.stopPropagation();">
+                        ${!n.read ? `<span class="notif-unread-dot" title="Unread"></span>` : ''}
+                        ${!n.read ? `
+                            <button type="button" class="notif-action-btn" title="Mark as Read" onclick="KisanNotifications.markAsRead('${n.id}')">
+                                <i class="fa-solid fa-check"></i>
+                            </button>
+                        ` : ''}
+                        <button type="button" class="notif-action-btn delete-btn" title="Delete notification" onclick="KisanNotifications.clearNotification('${n.id}')">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join("") : `
+            <div class="notif-empty-state">
+                <i class="fa-solid fa-bell-slash notif-empty-icon"></i>
+                <strong style="font-size:14px; color:#2a3d32; display:block;">${t("noNotifications") || "No Notifications to Display"}</strong>
+                <p style="font-size:12.5px; margin:4px 0 0; color:#6d7d74;">${t("noNotificationsDesc") || "You're all caught up! Real-time notifications for slot bookings, queue turns, and DBT payments will appear here."}</p>
+            </div>
+        `;
+
+        return `
+            <div id="kisan-notifications-container">
+                ${filterTabsHtml}
+                ${controlsHtml}
+                <div style="max-height:420px; overflow-y:auto; padding-right:4px;">
+                    ${listHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function openPanel() {
+        const content = renderPanelHtml();
+        openModal(t("notificationsTitle") || "Notification & Alert Centre", content);
+    }
+
+    function refreshModalIfOpen() {
+        const container = document.getElementById("kisan-notifications-container");
+        if (container) {
+            const parent = container.parentElement;
+            if (parent) {
+                parent.innerHTML = renderPanelHtml();
+            }
+        }
+    }
+
+    return {
+        init,
+        addNotification,
+        insertSyncedNotification,
+        has,
+        getAll: () => [...notifications],
+        getForCurrentRole,
+        getUnreadCount,
+        markAsRead,
+        markAllAsRead,
+        clearNotification,
+        clearAll,
+        updateBadges,
+        setFilter,
+        openPanel,
+        refreshModalIfOpen
     };
 })();
 
@@ -355,8 +813,15 @@ const translations = {
         // Notifications
         notificationsTitle: "Notification & Alert Centre",
         markAllRead: "Mark all as read",
+        clearAllNotifs: "Clear All",
         voiceAlertBtn: "Play Voice Announcement",
         allNotifReadSuccess: "All notifications marked as read.",
+        filterAll: "All",
+        filterUnread: "Unread",
+        filterProcurement: "Queue & Mandi",
+        filterPayment: "DBT & Payment",
+        noNotifications: "No Notifications to Display",
+        noNotificationsDesc: "You're all caught up! Real-time notifications for slot bookings, queue turns, and DBT payments will appear here.",
         // Centre
         centresTitle: "Nearest Procurement Centres & Congestion",
         liveCrowdStatus: "Live Mandi Congestion",
@@ -586,10 +1051,18 @@ const translations = {
         utrLabel: "डीबीटी संदर्भ / यूटीआर नंबर",
         weighingSlip: "आधिकारिक तौल एवं नमी पर्ची",
         downloadSlip: "डीबीटी रसीद डाउनलोड करें",
+        // Notifications
         notificationsTitle: "सूचना एवं अलर्ट केंद्र",
         markAllRead: "सभी पढ़ी गई चिह्नित करें",
+        clearAllNotifs: "सभी हटाएं",
         voiceAlertBtn: "आवाज में सूचना सुनें",
         allNotifReadSuccess: "सभी सूचनाएं पढ़ ली गईं।",
+        filterAll: "सभी",
+        filterUnread: "अपठित",
+        filterProcurement: "कतार एवं मंडी",
+        filterPayment: "डीबीटी एवं भुगतान",
+        noNotifications: "कोई सूचना नहीं है",
+        noNotificationsDesc: "सभी सूचनाएं अद्यतन हैं! स्लॉट बुकिंग, कतार बारी और डीबीटी भुगतान की सूचनाएं यहां दिखाई देंगी।",
         centresTitle: "निकटतम खरीद केंद्र एवं भीड़ स्थिति",
         liveCrowdStatus: "मंडी में लाइव भीड़ स्थिति",
         lowWait: "कम भीड़ (5-10 मिनट प्रतीक्षा)",
@@ -815,10 +1288,18 @@ const translations = {
         utrLabel: "DBT రిఫరెన్స్ / UTR నంబర్",
         weighingSlip: "అధికారిక తూకం మరియు తేమ రసీదు",
         downloadSlip: "DBT రసీదు డౌన్‌లోడ్ చేసుకోండి",
+        // Notifications
         notificationsTitle: "నోటిఫికేషన్ & హెచ్చరిక కేంద్రం",
         markAllRead: "అన్నీ చదివినట్లు గుర్తించు",
+        clearAllNotifs: "అన్నీ తొలగించు",
         voiceAlertBtn: "వాయిస్ అనౌన్స్‌మెంట్ వినండి",
         allNotifReadSuccess: "అన్ని నోటిఫికేషన్లు చదివినట్లు గుర్తించబడ్డాయి.",
+        filterAll: "అన్నీ",
+        filterUnread: "చదవనివి",
+        filterProcurement: "క్యూ & మండీ",
+        filterPayment: "డీబీటీ & చెల్లింపు",
+        noNotifications: "ఎటువంటి నోటిఫికేషన్లు లేవు",
+        noNotificationsDesc: "మీరు అన్నీ చూశారు! స్లాట్ బుకింగ్, క్యూ టర్న్ మరియు డీబీటీ చెల్లింపుల నోటిఫికేషన్లు ఇక్కడ కనిపిస్తాయి.",
         centresTitle: "సమీప సేకరణ కేంద్రాలు & రద్దీ సమాచారం",
         liveCrowdStatus: "మార్కెట్‌లో ప్రస్తుత రద్దీ",
         lowWait: "తక్కువ రద్దీ (5-10 నిమిషాలు)",
@@ -1043,11 +1524,18 @@ const translations = {
         ifscLabel: "IFSC குறியீடு",
         utrLabel: "DBT குறிப்பு / UTR எண்",
         weighingSlip: "அதிகாரப்பூர்வ எடை & ஈரப்பத சீட்டு",
-        downloadSlip: "DBT ரசீது பதிவிறக்கம்",
+        // Notifications
         notificationsTitle: "அறிவிப்பு மையம்",
         markAllRead: "அனைத்தையும் படித்ததாக குறிக்கவும்",
+        clearAllNotifs: "அனைத்தும் அழிக்க",
         voiceAlertBtn: "குரல் அறிவிப்பைக் கேட்க",
         allNotifReadSuccess: "அனைத்து அறிவிப்புகளும் படிக்கப்பட்டன.",
+        filterAll: "அனைத்தும்",
+        filterUnread: "படிக்காதவை",
+        filterProcurement: "வரிசை & மண்டி",
+        filterPayment: "டிபிடி & கட்டணம்",
+        noNotifications: "அறிவிப்புகள் எதுவும் இல்லை",
+        noNotificationsDesc: "அனைத்தும் சரிபார்க்கப்பட்டது! புதிய அறிவிப்புகள் இங்கு தோன்றும்.",
         centresTitle: "அருகிலுள்ள மையங்கள் & கூட்ட நெரிசல்",
         liveCrowdStatus: "சந்தை கூட்ட நெரிசல்",
         lowWait: "குறைந்த கூட்டம் (5-10 நிமிடம்)",
@@ -1272,11 +1760,18 @@ const translations = {
         ifscLabel: "IFSC ಕೋಡ್",
         utrLabel: "DBT ಉಲ್ಲೇಖ / UTR ಸಂಖ್ಯೆ",
         weighingSlip: "ಅಧಿಕೃತ ತೂಕದ ರಸೀದಿ",
-        downloadSlip: "DBT ರಸೀದಿ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ",
+        // Notifications
         notificationsTitle: "ಅಧಿಸೂಚನೆ ಕೇಂದ್ರ",
         markAllRead: "ಎಲ್ಲವನ್ನೂ ಓದಲಾಗಿದೆ ಎಂದು ಗುರುತಿಸಿ",
+        clearAllNotifs: "ಎಲ್ಲ ತೆರವುಗೊಳಿಸಿ",
         voiceAlertBtn: "ಧ್ವನಿ ಅಧಿಸೂಚನೆ ಕೇಳಿ",
         allNotifReadSuccess: "ಎಲ್ಲಾ ಅಧಿಸೂಚನೆಗಳನ್ನು ಓದಲಾಗಿದೆ.",
+        filterAll: "ಎಲ್ಲಾ",
+        filterUnread: "ಓದದಿರುವುದು",
+        filterProcurement: "ಸರದಿ & ಮಂಡಿ",
+        filterPayment: "ಡಿಬಿಟಿ & ಪಾವತಿ",
+        noNotifications: "ಯಾವುದೇ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ",
+        noNotificationsDesc: "ಎಲ್ಲವೂ ನವೀಕೃತವಾಗಿದೆ! ಅಧಿಸೂಚನೆಗಳು ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತವೆ.",
         centresTitle: "ಹತ್ತಿರದ ಕೇಂದ್ರಗಳು ಮತ್ತು ಜನಸಂದಣಿ",
         liveCrowdStatus: "ಮಾರುಕಟ್ಟೆ ಜನಸಂದಣಿ",
         lowWait: "ಕಡಿಮೆ ಸಂದಣಿ (5-10 ನಿಮಿಷ)",
@@ -1502,10 +1997,18 @@ const translations = {
         utrLabel: "DBT റഫറൻസ് / UTR നമ്പർ",
         weighingSlip: "തൂക്ക രസീത്",
         downloadSlip: "DBT രസീത് ഡൗൺലോഡ് ചെയ്യുക",
+        // Notifications
         notificationsTitle: "അറിയിപ്പ് കേന്ദ്രം",
         markAllRead: "എല്ലാം വായിച്ചതായി അടയാളപ്പെടുത്തുക",
+        clearAllNotifs: "എല്ലാം മായ്ക്കുക",
         voiceAlertBtn: "വോയ്‌സ് അറിയിപ്പ് കേൾക്കുക",
         allNotifReadSuccess: "എല്ലാ അറിയിപ്പുകളും വായിച്ചു.",
+        filterAll: "എല്ലാം",
+        filterUnread: "വായിക്കാത്തവ",
+        filterProcurement: "ക്യൂ & മണ്ടി",
+        filterPayment: "ഡിബിടി & പേയ്മെന്റ്",
+        noNotifications: "അറിയിപ്പുകൾ ഒന്നുമില്ല",
+        noNotificationsDesc: "എല്ലാം അപ്ഡേറ്റാണ്! പുതിയ അറിയിപ്പുകൾ ഇവിടെ കാണാം.",
         centresTitle: "അടുത്തുള്ള കേന്ദ്രങ്ങളും തിരക്കും",
         liveCrowdStatus: "വിപണിയിലെ തിരക്ക്",
         lowWait: "കുറഞ്ഞ തിരക്ക് (5-10 മിനിറ്റ്)",
@@ -2429,6 +2932,18 @@ function handleBookingSubmit(e) {
     yardQueueData.unshift(yardEntry);
     saveYardQueue();
 
+    // Add notification for Farmer
+    KisanNotifications.addNotification({
+        type: KisanEvents.FARMER_SLOT_BOOKED,
+        title: "Procurement Slot Booked",
+        message: `Your procurement slot has been booked successfully for ${quantity} Q ${crop}. Token #${tokenNo} issued.`,
+        targetRole: "farmer",
+        icon: "fa-calendar-check",
+        badgeType: "success",
+        entity: { tokenId: tokenNo, crop: crop, quantity: quantity, date: date, time: time, centre: centre },
+        broadcast: false
+    });
+
     // Broadcast real-time sync event across roles
     KisanSync.publish(KisanEvents.FARMER_SLOT_BOOKED, {
         booking: currentBooking,
@@ -2648,6 +3163,18 @@ function farmerCancelProcurement() {
     yardQueueData = yardQueueData.filter(f => f.id !== currentBooking.id && f.farmerId !== farmerId);
     saveYardQueue();
 
+    // Add notification for Farmer
+    KisanNotifications.addNotification({
+        type: KisanEvents.FARMER_SLOT_CANCELLED,
+        title: "Procurement Slot Cancelled",
+        message: `Your procurement appointment #${cancelledId} (Token #${cancelledToken}) was cancelled.`,
+        targetRole: "farmer",
+        icon: "fa-calendar-xmark",
+        badgeType: "warning",
+        entity: { tokenId: cancelledToken },
+        broadcast: false
+    });
+
     // Broadcast cancellation across roles
     KisanSync.publish(KisanEvents.FARMER_SLOT_CANCELLED, {
         bookingId: cancelledId,
@@ -2692,6 +3219,28 @@ function farmerCompleteProcurement() {
         saveYardQueue();
     }
 
+    // Add notifications for Farmer
+    KisanNotifications.addNotification({
+        type: KisanEvents.PROCUREMENT_COMPLETED,
+        title: "Procurement Completed",
+        message: "Your procurement has been completed successfully.",
+        targetRole: "farmer",
+        icon: "fa-circle-check",
+        badgeType: "success",
+        entity: { tokenId: tokenNo, amount: amount },
+        broadcast: false
+    });
+    KisanNotifications.addNotification({
+        type: KisanEvents.PAYMENT_UPDATED,
+        title: "Payment / DBT Status Updated",
+        message: "Your payment/DBT status has been updated.",
+        targetRole: "farmer",
+        icon: "fa-indian-rupee-sign",
+        badgeType: "dbt",
+        entity: { tokenId: tokenNo, amount: amount, bank: "SBI", utr: "RBI89327491028" },
+        broadcast: false
+    });
+
     // Broadcast completion event across roles
     KisanSync.publish(KisanEvents.FARMER_PROCUREMENT_COMPLETED, {
         bookingId: bookingId,
@@ -2728,6 +3277,17 @@ function advanceQueueStep() {
         if (dashPos) dashPos.textContent = `0${queuePosition}`;
         if (dashWait) dashWait.textContent = `${queuePosition * 4} mins`;
 
+        KisanNotifications.addNotification({
+            type: KisanEvents.FARMER_QUEUE_UPDATED,
+            title: "Queue Position Updated",
+            message: "Your queue position has been updated.",
+            targetRole: "farmer",
+            icon: "fa-people-line",
+            badgeType: "info",
+            entity: { position: queuePosition, waitMins: queuePosition * 4, serving: queueServing },
+            broadcast: false
+        });
+
         showToast(`Queue advanced! ${queuePosition} farmers ahead of you.`);
     } else {
         triggerTurnReadyAlert();
@@ -2762,6 +3322,16 @@ function triggerTurnReadyAlert() {
         dashBadge.textContent = "Your Turn!";
         dashBadge.className = "status-badge confirmed";
     }
+
+    KisanNotifications.addNotification({
+        type: KisanEvents.OFFICER_TOKEN_CALLED,
+        title: "Your Turn is Ready!",
+        message: "Your turn is ready at Weighbridge Counter 2. Please proceed immediately.",
+        targetRole: "farmer",
+        icon: "fa-bullhorn",
+        badgeType: "warning",
+        broadcast: false
+    });
 
     showToast("🔔 YOUR TURN IS READY! Please move to Weighbridge Gate 2 immediately.", "success");
 }
@@ -2943,91 +3513,20 @@ function openHistory() {
    10. NOTIFICATIONS CENTRE
 ========================================================= */
 
-const notificationsList = [
-    {
-        id: 1,
-        title: "Queue Alert: Weighbridge Counter 2 Ready",
-        time: "10 mins ago",
-        desc: "Your Token #KS-07 has been called at AP State Centre Counter 2. Please proceed for weighing.",
-        icon: "fa-bullhorn",
-        unread: true
-    },
-    {
-        id: 2,
-        title: "DBT Payment Batch Initiated (₹48,650)",
-        time: "1 hour ago",
-        desc: "Sanction order generated for 21.5 Quintals Paddy under DoCA MSP. Funds in transit to your SBI account.",
-        icon: "fa-indian-rupee-sign",
-        unread: true
-    },
-    {
-        id: 3,
-        title: "Slot Confirmation for 27 Aug 10:30 AM",
-        time: "Today · 09:42 AM",
-        desc: "Digital gate pass #KS748291 generated. Mandi entrance access granted.",
-        icon: "fa-calendar-check",
-        unread: true
-    },
-    {
-        id: 4,
-        title: "Weather Advisory: Clear skies at Mandi",
-        time: "Yesterday",
-        desc: "Optimal harvest and transport conditions for Paddy & Wheat delivery.",
-        icon: "fa-cloud-sun",
-        unread: false
-    }
-];
-
 function openNotifications() {
-    const listHtml = notificationsList.map(n => `
-        <div style="background:${n.unread ? '#f3faf5' : '#ffffff'}; border:1px solid ${n.unread ? '#bde5cb' : '#e2eae4'}; border-radius:14px; padding:16px; margin-bottom:10px; display:flex; gap:14px; align-items:flex-start;">
-            <div style="width:38px; height:38px; border-radius:10px; background:${n.unread ? '#e8f5ed' : '#f0f4f1'}; color:${n.unread ? '#26734d' : '#6f7f75'}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                <i class="fa-solid ${n.icon}"></i>
-            </div>
-            <div style="flex:1;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong style="font-size:13.5px; color:#174d32;">${n.title}</strong>
-                    <span style="font-size:11px; color:#7d8f84;">${n.time}</span>
-                </div>
-                <p style="font-size:12.5px; color:#495a50; margin-top:4px; line-height:1.4;">${n.desc}</p>
-            </div>
-        </div>
-    `).join("");
-
-    const content = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <button type="button" class="text-btn" onclick="playVoiceAnnouncement()">
-                <i class="fa-solid fa-volume-high"></i>
-                <span>${t("voiceAlertBtn")}</span>
-            </button>
-            <button type="button" class="text-btn" onclick="markAllNotificationsRead()">
-                <i class="fa-solid fa-check-double"></i>
-                <span>${t("markAllRead")}</span>
-            </button>
-        </div>
-        <div>
-            ${listHtml}
-        </div>
-    `;
-
-    openModal(t("notificationsTitle"), content);
+    KisanNotifications.openPanel();
 }
 
 function markAllNotificationsRead() {
-    notificationsList.forEach(n => n.unread = false);
-    updateNotificationBadge();
-    closeModal();
-    showToast(t("allNotifReadSuccess"));
+    KisanNotifications.markAllAsRead();
 }
 
 function updateNotificationBadge() {
-    const unreadCount = notificationsList.filter(n => n.unread).length;
-    const badge = document.getElementById("sidebar-notification-badge");
-    const dot = document.getElementById("topbar-notif-dot");
-    if (badge) badge.textContent = String(unreadCount);
-    if (dot) {
-        dot.style.display = unreadCount > 0 ? "block" : "none";
-    }
+    KisanNotifications.updateBadges();
+}
+
+function clearAllNotifications() {
+    KisanNotifications.clearAll();
 }
 
 function playVoiceAnnouncement(customText, targetLang) {
@@ -3649,6 +4148,7 @@ document.addEventListener("click", function(event) {
                 openPayment();
                 break;
             case "notifications":
+            case "officer-notifications":
                 openNotifications();
                 break;
             case "centre":
@@ -3771,20 +4271,94 @@ function officerAdvanceFarmerStage(id) {
         item.stageCode = "gross_weighing";
         item.stage = "Gross Weighbridge";
         showToast(`Token #${item.token} (${item.farmerName}) moved to Gross Weighbridge.`);
+
+        KisanNotifications.addNotification({
+            type: KisanEvents.QR_VERIFIED,
+            title: "Farmer Verified Successfully",
+            message: `Farmer ${item.farmerName} (Token #${item.token}) verified at Gate 1.`,
+            targetRole: "officer",
+            icon: "fa-clipboard-check",
+            badgeType: "success",
+            entity: { tokenId: item.token, farmerName: item.farmerName, crop: item.crop }
+        });
+
+        KisanSync.publish(KisanEvents.FARMER_CHECK_IN, {
+            id: item.id,
+            farmerId: item.farmerId,
+            farmerName: item.farmerName,
+            token: item.token,
+            gate: "Gate 1",
+            status: "Arrived & Verified"
+        });
+
     } else if (item.stageCode === "gross_weighing") {
         item.stageCode = "quality_check";
         item.stage = "Quality Inspected";
         item.moisture = "14.0% (Pass)";
         showToast(`Token #${item.token} Quality verified & moisture tested: 14.0%.`);
+
+        KisanSync.publish(KisanEvents.QUALITY_INSPECTION_STARTED, {
+            id: item.id,
+            farmerId: item.farmerId,
+            farmerName: item.farmerName,
+            token: item.token,
+            crop: item.crop
+        });
+
+        KisanSync.publish(KisanEvents.QUALITY_APPROVED, {
+            id: item.id,
+            farmerId: item.farmerId,
+            farmerName: item.farmerName,
+            token: item.token,
+            moisture: "14.0% (Pass)",
+            grade: "Grade A"
+        });
+
     } else if (item.stageCode === "quality_check") {
         item.stageCode = "tare_weighing";
         item.stage = "Tare Weighbridge";
         showToast(`Token #${item.token} moved to Empty Vehicle (Tare) Weighing.`);
+
+        KisanSync.publish(KisanEvents.FARMER_QUEUE_UPDATED, {
+            id: item.id,
+            farmerId: item.farmerId,
+            farmerName: item.farmerName,
+            token: item.token,
+            stage: "Tare Weighbridge"
+        });
+
     } else if (item.stageCode === "tare_weighing") {
         item.stageCode = "completed";
         item.stage = "Procurement Completed";
         item.status = "Completed";
         showToast(`Token #${item.token} Weighment complete! ₹${item.amount} DBT payout queued.`, "success");
+
+        KisanNotifications.addNotification({
+            type: KisanEvents.PROCUREMENT_COMPLETED,
+            title: "Procurement Finalized",
+            message: `Procurement finalized for Token #${item.token} (${item.farmerName}). J-Form created.`,
+            targetRole: "officer",
+            icon: "fa-circle-check",
+            badgeType: "success",
+            entity: { tokenId: item.token, farmerName: item.farmerName, amount: item.amount }
+        });
+
+        KisanSync.publish(KisanEvents.PROCUREMENT_COMPLETED, {
+            id: item.id,
+            farmerId: item.farmerId,
+            farmerName: item.farmerName,
+            token: item.token,
+            amount: item.amount
+        });
+
+        KisanSync.publish(KisanEvents.PAYMENT_UPDATED, {
+            id: item.id,
+            farmerId: item.farmerId,
+            farmerName: item.farmerName,
+            token: item.token,
+            amount: item.amount,
+            status: "Approved & DBT Credited"
+        });
     }
 
     if (currentBooking && (currentBooking.id === id || id === "KS748291" || currentBooking.token === item.token)) {
@@ -3840,6 +4414,16 @@ function officerCompleteProcurement(id) {
     renderOfficerQueueTable();
     updateOfficerStats();
 
+    KisanNotifications.addNotification({
+        type: KisanEvents.PROCUREMENT_COMPLETED,
+        title: "Procurement Finalized",
+        message: `Token #${item.token} (${item.farmerName}) finalized. J-Form and DBT released.`,
+        targetRole: "officer",
+        icon: "fa-circle-check",
+        badgeType: "success",
+        entity: { tokenId: item.token, farmerName: item.farmerName, amount: item.amount }
+    });
+
     // Broadcast stage completion and payment event
     KisanSync.publish(KisanEvents.OFFICER_STAGE_ADVANCED, {
         id: item.id,
@@ -3852,6 +4436,14 @@ function officerCompleteProcurement(id) {
         amount: item.amount,
         status: item.status,
         isFinalized: true
+    });
+
+    KisanSync.publish(KisanEvents.PROCUREMENT_COMPLETED, {
+        id: item.id,
+        farmerId: item.farmerId,
+        farmerName: item.farmerName,
+        token: item.token,
+        amount: item.amount
     });
 
     KisanSync.publish(KisanEvents.PAYMENT_UPDATED, {
@@ -3885,6 +4477,16 @@ function officerCancelFarmerToken(id) {
     renderOfficerQueueTable();
     updateOfficerStats();
 
+    KisanNotifications.addNotification({
+        type: KisanEvents.OFFICER_TOKEN_CANCELLED,
+        title: "Token Cancelled",
+        message: `Token #${cancelledItem.token} (${cancelledItem.farmerName}) removed from yard queue.`,
+        targetRole: "officer",
+        icon: "fa-ban",
+        badgeType: "warning",
+        entity: { tokenId: cancelledItem.token, farmerName: cancelledItem.farmerName }
+    });
+
     // Broadcast cancellation across roles
     KisanSync.publish(KisanEvents.OFFICER_TOKEN_CANCELLED, {
         id: cancelledItem.id,
@@ -3900,6 +4502,16 @@ function officerCallFarmerToken(token, name) {
     const text = `Attention please. Token number ${token}, Farmer ${name}, please report to Weighbridge Gate 1 immediately.`;
     playVoiceAnnouncement(text, "English");
     showToast(`📢 Token #${token} (${name}) called over yard loudspeaker!`, "info");
+
+    KisanNotifications.addNotification({
+        type: KisanEvents.OFFICER_TOKEN_CALLED,
+        title: `Loudspeaker Call: Token #${token}`,
+        message: `Token #${token} (${name}) called to Weighbridge Gate 1.`,
+        targetRole: "officer",
+        icon: "fa-bullhorn",
+        badgeType: "warning",
+        entity: { tokenId: token, farmerName: name, gate: "Weighbridge Gate 1" }
+    });
 
     // Broadcast loudspeaker call to farmer interface
     KisanSync.publish(KisanEvents.OFFICER_TOKEN_CALLED, {
@@ -3979,6 +4591,16 @@ function handleSendBroadcast(e) {
 
     playVoiceAnnouncement(message, "English");
     showToast(`📢 Broadcast sent: "${message.substring(0, 50)}..." via PA system & SMS!`, "success");
+
+    KisanNotifications.addNotification({
+        type: KisanEvents.OFFICER_BROADCAST_SENT,
+        title: "PA Broadcast Dispatched",
+        message: message,
+        targetRole: "officer",
+        icon: "fa-volume-high",
+        badgeType: "info",
+        broadcast: false
+    });
 
     // Broadcast yard announcement to all connected farmer tabs
     KisanSync.publish(KisanEvents.OFFICER_BROADCAST_SENT, {
@@ -4231,6 +4853,16 @@ function handleSpotBookingSubmit(e) {
     renderOfficerQueueTable();
     updateOfficerStats();
 
+    KisanNotifications.addNotification({
+        type: KisanEvents.OFFICER_SPOT_PASS_ISSUED,
+        title: "Spot Gate Pass Issued",
+        message: `Spot token #${nextToken} issued for ${name} (${crop}, ${quantity} Q).`,
+        targetRole: "officer",
+        icon: "fa-ticket",
+        badgeType: "success",
+        entity: { tokenId: nextToken, farmerName: name, crop: crop, quantity: quantity }
+    });
+
     // Broadcast spot pass issued
     KisanSync.publish(KisanEvents.OFFICER_SPOT_PASS_ISSUED, {
         entry: newEntry
@@ -4340,6 +4972,18 @@ function confirmCancelBooking() {
 
         yardQueueData = yardQueueData.filter(f => f.id !== currentBooking.id && f.farmerId !== farmerId);
         saveYardQueue();
+
+        // Add notification for Farmer
+        KisanNotifications.addNotification({
+            type: KisanEvents.FARMER_SLOT_CANCELLED,
+            title: "Procurement Slot Cancelled",
+            message: `Your booking #${cancelledId} (Token #${cancelledToken}) was cancelled. Reason: ${reason}.`,
+            targetRole: "farmer",
+            icon: "fa-calendar-xmark",
+            badgeType: "warning",
+            entity: { tokenId: cancelledToken, bookingId: cancelledId, reason: reason },
+            broadcast: false
+        });
 
         // Broadcast cancellation across roles
         KisanSync.publish(KisanEvents.FARMER_SLOT_CANCELLED, {
@@ -4460,6 +5104,13 @@ function openProcurementReceiptModal(bookingId) {
 
 function initKisanSyncListeners() {
     // -----------------------------------------------------
+    // 0. Generic Synced Notification Insertion
+    // -----------------------------------------------------
+    KisanSync.subscribe(KisanEvents.NOTIFICATION_CREATED, (notif) => {
+        KisanNotifications.insertSyncedNotification(notif);
+    });
+
+    // -----------------------------------------------------
     // A. Mandi Officer responds to Farmer Actions
     // -----------------------------------------------------
 
@@ -4477,12 +5128,26 @@ function initKisanSyncListeners() {
             }
         }
         const user = getCurrentUser();
-        if (user.role === "officer" || user.role === "admin") {
+        const fName = payload.farmer ? payload.farmer.name : "Farmer";
+        const crop = payload.booking ? payload.booking.crop : "Crop";
+        const token = payload.booking ? payload.booking.token : "--";
+        const qty = payload.booking ? payload.booking.quantity : "";
+
+        // Notification to officer: "New farmer procurement request received."
+        KisanNotifications.addNotification({
+            type: KisanEvents.FARMER_SLOT_BOOKED,
+            title: "New Farmer Procurement Request",
+            message: `New farmer procurement request received: ${fName} (${qty ? qty + ' Q ' : ''}${crop}, Token #${token}).`,
+            targetRole: "officer",
+            icon: "fa-inbox",
+            badgeType: "info",
+            entity: { tokenId: token, farmerName: fName, crop: crop, quantity: qty },
+            broadcast: false
+        });
+
+        if (user && (user.role === "officer" || user.role === "admin")) {
             renderOfficerQueueTable();
             updateOfficerStats();
-            const fName = payload.farmer ? payload.farmer.name : "Farmer";
-            const crop = payload.booking ? payload.booking.crop : "Crop";
-            const token = payload.booking ? payload.booking.token : "--";
             showToast(`📥 Live Sync: ${fName} booked slot for ${crop} (Token #${token})`, "info");
         }
     });
@@ -4495,8 +5160,20 @@ function initKisanSyncListeners() {
         yardQueueData = yardQueueData.filter(f => f.id !== payload.bookingId && f.token !== payload.token && f.farmerId !== payload.farmerId);
         saveYardQueue();
 
+        // Notification to officer
+        KisanNotifications.addNotification({
+            type: KisanEvents.FARMER_SLOT_CANCELLED,
+            title: "Farmer Slot Cancelled",
+            message: `${payload.farmerName || "Farmer"} cancelled Token #${payload.token}. Reason: ${payload.reason || "Cancelled"}`,
+            targetRole: "officer",
+            icon: "fa-ban",
+            badgeType: "danger",
+            entity: { tokenId: payload.token, farmerName: payload.farmerName, reason: payload.reason },
+            broadcast: false
+        });
+
         const user = getCurrentUser();
-        if (user.role === "officer" || user.role === "admin") {
+        if (user && (user.role === "officer" || user.role === "admin")) {
             renderOfficerQueueTable();
             updateOfficerStats();
             showToast(`⚠️ Live Sync: Farmer cancelled Token #${payload.token} (${payload.reason || "Cancelled"})`, "warning");
@@ -4515,8 +5192,21 @@ function initKisanSyncListeners() {
             item.status = "Completed";
             saveYardQueue();
         }
+
+        // Notification to officer
+        KisanNotifications.addNotification({
+            type: KisanEvents.PROCUREMENT_COMPLETED,
+            title: "Farmer Procurement Completed",
+            message: `Procurement completed for Token #${payload.token} (${payload.farmerName || 'Farmer'}).`,
+            targetRole: "officer",
+            icon: "fa-circle-check",
+            badgeType: "success",
+            entity: { tokenId: payload.token, farmerName: payload.farmerName, amount: payload.amount },
+            broadcast: false
+        });
+
         const user = getCurrentUser();
-        if (user.role === "officer" || user.role === "admin") {
+        if (user && (user.role === "officer" || user.role === "admin")) {
             renderOfficerQueueTable();
             updateOfficerStats();
             showToast(`✅ Live Sync: Token #${payload.token} finalized procurement (${payload.amount || ''})`, "success");
@@ -4527,13 +5217,185 @@ function initKisanSyncListeners() {
     // B. Farmer responds to Officer Actions
     // -----------------------------------------------------
 
+    KisanSync.subscribe(KisanEvents.FARMER_CHECK_IN, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.token === "07" && user && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken) {
+            KisanNotifications.addNotification({
+                type: KisanEvents.QR_VERIFIED,
+                title: "Arrival Verified at Centre",
+                message: "Your arrival has been verified at the procurement centre.",
+                targetRole: "farmer",
+                icon: "fa-clipboard-check",
+                badgeType: "success",
+                entity: { tokenId: payload.token, gate: payload.gate || "Gate 1" },
+                broadcast: false
+            });
+            if (user && user.role !== "officer") {
+                showToast("📍 Arrival Verified at Gate 1. Proceed to Gross Weighbridge.", "success");
+            }
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.QR_VERIFIED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId)
+        );
+
+        if (isMyToken) {
+            KisanNotifications.addNotification({
+                type: KisanEvents.QR_VERIFIED,
+                title: "Arrival Verified at Centre",
+                message: "Your arrival has been verified at the procurement centre.",
+                targetRole: "farmer",
+                icon: "fa-clipboard-check",
+                badgeType: "success",
+                entity: { tokenId: payload.token, gate: payload.gate || "Gate 1" },
+                broadcast: false
+            });
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.QUALITY_INSPECTION_STARTED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.token === "07" && user && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken) {
+            KisanNotifications.addNotification({
+                type: KisanEvents.QUALITY_INSPECTION_STARTED,
+                title: "Quality Inspection Started",
+                message: "Your grain quality inspection has started.",
+                targetRole: "farmer",
+                icon: "fa-microscope",
+                badgeType: "info",
+                entity: { tokenId: payload.token, crop: payload.crop },
+                broadcast: false
+            });
+            if (user && user.role !== "officer") {
+                showToast("🔬 Grain Quality Testing & Moisture analysis in progress...", "info");
+            }
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.QUALITY_APPROVED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.token === "07" && user && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken) {
+            KisanNotifications.addNotification({
+                type: KisanEvents.QUALITY_APPROVED,
+                title: "Quality Inspection Approved",
+                message: "Your grain quality inspection has been completed.",
+                targetRole: "farmer",
+                icon: "fa-circle-check",
+                badgeType: "success",
+                entity: { tokenId: payload.token, moisture: payload.moisture || "14.0%", grade: payload.grade || "Grade A" },
+                broadcast: false
+            });
+            if (user && user.role !== "officer") {
+                showToast(`✅ Grain Quality Inspection Passed (${payload.moisture || '14% Moisture'})!`, "success");
+            }
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.FARMER_QUEUE_UPDATED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId)
+        );
+
+        if (isMyToken) {
+            KisanNotifications.addNotification({
+                type: KisanEvents.FARMER_QUEUE_UPDATED,
+                title: "Queue Position Updated",
+                message: "Your queue position has been updated.",
+                targetRole: "farmer",
+                icon: "fa-people-line",
+                badgeType: "info",
+                entity: { tokenId: payload.token, stage: payload.stage },
+                broadcast: false
+            });
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.PROCUREMENT_COMPLETED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.token === "07" && user && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken) {
+            KisanNotifications.addNotification({
+                type: KisanEvents.PROCUREMENT_COMPLETED,
+                title: "Procurement Completed",
+                message: "Your procurement has been completed successfully.",
+                targetRole: "farmer",
+                icon: "fa-circle-check",
+                badgeType: "success",
+                entity: { tokenId: payload.token, amount: payload.amount },
+                broadcast: false
+            });
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.PAYMENT_UPDATED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.id === payload.bookingId ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.token === "07" && user && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken) {
+            KisanNotifications.addNotification({
+                type: KisanEvents.PAYMENT_UPDATED,
+                title: "Payment / DBT Status Updated",
+                message: "Your payment/DBT status has been updated.",
+                targetRole: "farmer",
+                icon: "fa-indian-rupee-sign",
+                badgeType: "dbt",
+                entity: { tokenId: payload.token, amount: payload.amount, status: payload.status || "Approved & Credited" },
+                broadcast: false
+            });
+            if (user && user.role !== "officer") {
+                showToast(`💰 DBT Payment Updated: ${payload.amount || 'MSP Amount'} status credited to bank.`, "success");
+            }
+        }
+    });
+
     KisanSync.subscribe(KisanEvents.OFFICER_STAGE_ADVANCED, (payload) => {
         const user = getCurrentUser();
         const isMyToken = currentBooking && (
             currentBooking.id === payload.id ||
             currentBooking.token === payload.token ||
             (user && user.farmerId === payload.farmerId) ||
-            (payload.id === "KS748291" && user.farmerId === "KS102458")
+            (payload.id === "KS748291" && user && user.farmerId === "KS102458")
         );
 
         if (isMyToken && currentBooking) {
@@ -4549,19 +5411,8 @@ function initKisanSyncListeners() {
                 saveBookingHistory();
             }
 
-            if (user.role !== "officer") {
+            if (user && user.role !== "officer") {
                 updateDashboardAfterBooking();
-
-                // Add to real-time notification list
-                notificationsList.unshift({
-                    id: Date.now(),
-                    title: `Mandi Stage: ${payload.stage}`,
-                    time: "Just now",
-                    desc: `Your crop intake reached stage: ${payload.stage} (Moisture: ${payload.moisture || "14% Standard"}).`,
-                    icon: getStageIcon(payload.stageCode),
-                    unread: true
-                });
-                updateNotificationBadge();
 
                 if (payload.stageCode === "completed") {
                     showToast(`🎉 Live Sync: Procurement Completed! ${payload.amount || '₹48,650'} DBT initiated to your bank account.`, "success");
@@ -4596,10 +5447,10 @@ function initKisanSyncListeners() {
             currentBooking.token === payload.token ||
             (user && user.farmerId === payload.farmerId) ||
             (user && user.name && payload.farmerName && user.name.includes(payload.farmerName)) ||
-            (payload.token === "07" && user.farmerId === "KS102458")
+            (payload.token === "07" && user && user.farmerId === "KS102458")
         );
 
-        if (user.role !== "officer" && isMyToken) {
+        if (user && user.role !== "officer" && isMyToken) {
             // Play audio announcement
             const lang = localStorage.getItem("kisanSetuLanguage") || "English";
             let text = `Attention ${user.name}. Token number ${payload.token} is called at Weighbridge Gate 1. Please proceed immediately.`;
@@ -4615,37 +5466,38 @@ function initKisanSyncListeners() {
             // Trigger turn ready alert on tracker
             triggerTurnReadyAlert();
 
-            notificationsList.unshift({
-                id: Date.now(),
-                title: `📢 Gate Call: Token #${payload.token}`,
-                time: "Just now",
-                desc: `Your turn is ready at Weighbridge Gate 1. Please move your vehicle immediately.`,
+            KisanNotifications.addNotification({
+                type: KisanEvents.OFFICER_TOKEN_CALLED,
+                title: `Loudspeaker Call: Token #${payload.token}`,
+                message: `Your turn is ready at Weighbridge Gate 1. Please move your vehicle immediately.`,
+                targetRole: "farmer",
                 icon: "fa-bullhorn",
-                unread: true
+                badgeType: "warning",
+                entity: { tokenId: payload.token, gate: payload.gate || "Weighbridge Gate 1" },
+                broadcast: false
             });
-            updateNotificationBadge();
         }
     });
 
     KisanSync.subscribe(KisanEvents.OFFICER_BROADCAST_SENT, (payload) => {
         const user = getCurrentUser();
-        if (user.role !== "officer") {
+        if (user && user.role !== "officer") {
             showToast(`📢 Mandi Yard Announcement: "${payload.message}"`, "info");
-            notificationsList.unshift({
-                id: Date.now(),
-                title: "📢 Mandi PA Broadcast",
-                time: "Just now",
-                desc: payload.message,
+            KisanNotifications.addNotification({
+                type: KisanEvents.OFFICER_BROADCAST_SENT,
+                title: "Mandi PA Announcement",
+                message: payload.message,
+                targetRole: "farmer",
                 icon: "fa-volume-high",
-                unread: true
+                badgeType: "info",
+                broadcast: false
             });
-            updateNotificationBadge();
         }
     });
 
     KisanSync.subscribe(KisanEvents.OFFICER_SPOT_PASS_ISSUED, (payload) => {
         const user = getCurrentUser();
-        if (user.role === "officer" || user.role === "admin") {
+        if (user && (user.role === "officer" || user.role === "admin")) {
             const savedQueue = localStorage.getItem("kisanSetuYardQueue");
             if (savedQueue) {
                 try { yardQueueData = JSON.parse(savedQueue); } catch(e){}
@@ -4667,13 +5519,24 @@ function initKisanSyncListeners() {
             saveCurrentBooking();
             updateDashboardAfterBooking();
             showToast(`⚠️ Your token #${payload.token} was cancelled by Mandi Officer.`, "error");
+
+            KisanNotifications.addNotification({
+                type: KisanEvents.OFFICER_TOKEN_CANCELLED,
+                title: "Token Cancelled",
+                message: `Your token #${payload.token} was cancelled by Mandi Officer.`,
+                targetRole: "farmer",
+                icon: "fa-ban",
+                badgeType: "danger",
+                entity: { tokenId: payload.token },
+                broadcast: false
+            });
         }
     });
 
     KisanSync.subscribe(KisanEvents.OFFICER_QUEUE_RESET, () => {
         const user = getCurrentUser();
         loadUserData(user);
-        if (user.role === "officer") {
+        if (user && user.role === "officer") {
             renderOfficerQueueTable();
             updateOfficerStats();
         } else {
@@ -4691,8 +5554,10 @@ document.addEventListener("DOMContentLoaded", function() {
     const savedLang = localStorage.getItem("kisanSetuLanguage") || "English";
     syncUserProfileUI();
     applyLanguage(savedLang);
+    KisanNotifications.init();
     renderRoleBasedView();
     updateDashboardAfterBooking();
     initKisanSyncListeners();
-    console.log("KisanSetu Ready for Hackathon Presentation! Real-Time Sync Active.");
+    KisanNotifications.updateBadges();
+    console.log("KisanSetu Ready for Hackathon Presentation! Real-Time Sync & Notifications Active.");
 });
