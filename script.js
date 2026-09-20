@@ -21,11 +21,15 @@ const KisanEvents = {
     FARMER_QUEUE_UPDATED: "FARMER_QUEUE_UPDATED",
     FARMER_CHECK_IN: "FARMER_CHECK_IN",
     QR_VERIFIED: "QR_VERIFIED",
+    WEIGHBRIDGE_STARTED: "WEIGHBRIDGE_STARTED",
+    WEIGHBRIDGE_COMPLETED: "WEIGHBRIDGE_COMPLETED",
+    QUALITY_WORKFLOW_READY: "QUALITY_WORKFLOW_READY",
     QUALITY_INSPECTION_STARTED: "QUALITY_INSPECTION_STARTED",
     QUALITY_ASSESSMENT_COMPLETED: "QUALITY_ASSESSMENT_COMPLETED",
     QUALITY_APPROVED: "QUALITY_APPROVED",
     QUALITY_ON_HOLD: "QUALITY_ON_HOLD",
     QUALITY_REJECTED: "QUALITY_REJECTED",
+    PROCUREMENT_READY: "PROCUREMENT_READY",
     PROCUREMENT_COMPLETED: "PROCUREMENT_COMPLETED",
     PAYMENT_UPDATED: "PAYMENT_UPDATED",
     OFFICER_STAGE_ADVANCED: "OFFICER_STAGE_ADVANCED",
@@ -1353,6 +1357,797 @@ function openOfficerQRScannerModal() {
 }
 
 /* =========================================================
+   TASK 09: KISANWEIGHBRIDGE — INTEGRATED WEIGHBRIDGE & QUALITY LAB PIPELINE
+   Verified Gross, Tare, Net Weight Calculations & Digital Slip Generator
+   Ministry of Consumer Affairs, Food & Public Distribution (DoCA)
+========================================================= */
+
+const KisanWeighbridge = (function() {
+    const STORAGE_KEY = "kisanSetuWeighbridgeRecords";
+
+    // Official Govt MSP procurement rates per Quintal
+    const MSP_RATES = {
+        "Paddy / Rice (Grade A)": 2300,
+        "Paddy / Rice (Common)": 2183,
+        "Paddy": 2300,
+        "Rice": 2300,
+        "Wheat (FAQ)": 2275,
+        "Wheat": 2275,
+        "Cotton (Medium Staple)": 2300,
+        "Cotton": 2300,
+        "Maize": 2090,
+        "Coarse Grains": 2090
+    };
+
+    // Standard empty vehicle tare presets (in Quintals)
+    const TARE_PRESETS = [
+        { label: "Tractor Trolley", weight: 5.20, icon: "fa-tractor", desc: "Single axle standard trolley (520 kg)" },
+        { label: "Mini Truck", weight: 8.50, icon: "fa-truck-pickup", desc: "Commercial mini truck (850 kg)" },
+        { label: "Commercial 6-Wheel Truck", weight: 14.20, icon: "fa-truck", desc: "Medium commercial vehicle (1,420 kg)" },
+        { label: "Bullock Cart / Trailer", weight: 2.10, icon: "fa-trailer", desc: "Small agricultural trailer (210 kg)" }
+    ];
+
+    function getMspRateForCrop(cropName) {
+        if (!cropName) return 2300;
+        for (const [k, rate] of Object.entries(MSP_RATES)) {
+            if (cropName.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(cropName.toLowerCase())) {
+                return rate;
+            }
+        }
+        return 2300;
+    }
+
+    function getWeighbridgeRecords() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            console.error("Error reading weighbridge records from storage", e);
+            return [];
+        }
+    }
+
+    function saveWeighbridgeRecord(record) {
+        try {
+            const records = getWeighbridgeRecords();
+            const existingIndex = records.findIndex(r => r.bookingId === record.bookingId || r.tokenId === record.tokenId);
+            if (existingIndex >= 0) {
+                records[existingIndex] = record;
+            } else {
+                records.unshift(record);
+            }
+            if (records.length > 50) records.pop();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            return record;
+        } catch (e) {
+            console.error("Error saving weighbridge record", e);
+            return record;
+        }
+    }
+
+    function getRecordForBooking(bookingId) {
+        if (!bookingId) return null;
+        const records = getWeighbridgeRecords();
+        return records.find(r => r.bookingId === bookingId || r.tokenId === bookingId || (r.gatePassId && r.gatePassId === bookingId)) || null;
+    }
+
+    function validateWeighment(gross, tare, crop) {
+        const g = parseFloat(gross);
+        const t = parseFloat(tare);
+        const msp = getMspRateForCrop(crop);
+
+        if (isNaN(g) || g <= 0) {
+            return {
+                valid: false,
+                error: "Gross weight must be a positive number greater than 0 Quintals.",
+                grossWeight: isNaN(g) ? 0 : g,
+                tareWeight: isNaN(t) ? 0 : t,
+                netWeight: 0,
+                netWeightKg: 0,
+                procurementValue: 0,
+                mspRate: msp
+            };
+        }
+
+        if (isNaN(t) || t < 0) {
+            return {
+                valid: false,
+                error: "Tare weight cannot be negative.",
+                grossWeight: g,
+                tareWeight: isNaN(t) ? 0 : t,
+                netWeight: 0,
+                netWeightKg: 0,
+                procurementValue: 0,
+                mspRate: msp
+            };
+        }
+
+        if (t >= g) {
+            return {
+                valid: false,
+                error: "Tare weight (empty vehicle) cannot be greater than or equal to Gross weight (loaded vehicle).",
+                grossWeight: g,
+                tareWeight: t,
+                netWeight: 0,
+                netWeightKg: 0,
+                procurementValue: 0,
+                mspRate: msp
+            };
+        }
+
+        const net = parseFloat((g - t).toFixed(2));
+        const netKg = parseFloat((net * 100).toFixed(1));
+        const value = Math.round(net * msp);
+
+        return {
+            valid: true,
+            error: null,
+            grossWeight: g,
+            tareWeight: t,
+            netWeight: net,
+            netWeightKg: netKg,
+            procurementValue: value,
+            mspRate: msp
+        };
+    }
+
+    function startWeighing(bookingId) {
+        let matched = null;
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            matched = yardQueueData.find(f => f.id === bookingId || f.token === bookingId);
+            if (matched) {
+                matched.stageCode = "gross_weighing";
+                matched.stage = "Gross Weighbridge";
+                matched.weighbridgeStatus = "IN_PROGRESS";
+                if (typeof saveYardQueue === "function") saveYardQueue();
+            }
+        }
+
+        if (typeof currentBooking !== "undefined" && currentBooking && (currentBooking.id === bookingId || currentBooking.token === bookingId)) {
+            currentBooking.stageCode = "gross_weighing";
+            currentBooking.stage = "Gross Weighbridge";
+            currentBooking.weighbridgeStatus = "IN_PROGRESS";
+            if (typeof saveCurrentBooking === "function") saveCurrentBooking();
+        }
+
+        if (typeof KisanSync !== "undefined" && matched) {
+            KisanSync.publish(KisanEvents.WEIGHBRIDGE_STARTED, {
+                id: matched.id,
+                token: matched.token,
+                farmerId: matched.farmerId,
+                farmerName: matched.farmerName,
+                crop: matched.crop,
+                vehicleNo: matched.vehicleNo,
+                timestamp: Date.now()
+            });
+        }
+
+        if (typeof renderOfficerQueueTable === "function") renderOfficerQueueTable();
+        if (typeof updateOfficerStats === "function") updateOfficerStats();
+    }
+
+    function confirmWeighment(params) {
+        const { bookingId, grossWeight, tareWeight, operatorNotes, autoAdvanceToQuality = true } = params;
+
+        // Retrieve active lot from queue or current booking
+        let lot = null;
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            lot = yardQueueData.find(f => f.id === bookingId || f.token === bookingId);
+        }
+        if (!lot && typeof currentBooking !== "undefined" && currentBooking) {
+            lot = currentBooking;
+        }
+
+        if (!lot) {
+            return { success: false, error: "Active lot/booking record not found." };
+        }
+
+        const validation = validateWeighment(grossWeight, tareWeight, lot.crop);
+        if (!validation.valid) {
+            return { success: false, error: validation.error };
+        }
+
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+        const officerName = (user && user.name) || "Officer S. Sharma";
+        const receiptNo = "WB-REC-2026-" + (lot.id ? lot.id.replace(/[^0-9]/g, '') : "748291");
+
+        const record = {
+            receiptId: receiptNo,
+            bookingId: lot.id || "KS748291",
+            tokenId: lot.token || "07",
+            farmerId: lot.farmerId || "KS102458",
+            farmerName: lot.farmerName || "Ramesh Kumar",
+            crop: lot.crop || "Paddy / Rice (Grade A)",
+            vehicleNo: lot.vehicleNo || "AP-07-TY-4920",
+            vehicleType: lot.vehicleType || "Tractor Trolley",
+            grossWeight: validation.grossWeight,
+            tareWeight: validation.tareWeight,
+            netWeight: validation.netWeight,
+            netWeightKg: validation.netWeightKg,
+            unit: "Quintals",
+            mspRate: validation.mspRate,
+            procurementValue: validation.procurementValue,
+            weighbridgeStatus: "COMPLETED",
+            stage: "Quality Inspection Lab",
+            stageCode: "quality_lab",
+            officerName: officerName,
+            operatorNotes: operatorNotes || "Standard electronic gross & tare verification completed.",
+            timestamp: Date.now()
+        };
+
+        saveWeighbridgeRecord(record);
+
+        // Update yardQueueData item
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            const qItem = yardQueueData.find(f => f.id === lot.id || f.token === lot.token);
+            if (qItem) {
+                qItem.grossWeight = record.grossWeight;
+                qItem.tareWeight = record.tareWeight;
+                qItem.netWeight = record.netWeight;
+                qItem.quantity = record.netWeight;
+                qItem.amount = "₹" + record.procurementValue.toLocaleString("en-IN");
+                qItem.stage = "Quality Inspection Lab";
+                qItem.stageCode = "quality_lab";
+                qItem.weighbridgeStatus = "COMPLETED";
+                qItem.weighbridgeReceiptId = record.receiptId;
+                if (typeof saveYardQueue === "function") saveYardQueue();
+            }
+        }
+
+        // Update currentBooking if matching
+        if (typeof currentBooking !== "undefined" && currentBooking) {
+            if (currentBooking.id === lot.id || currentBooking.token === lot.token || (currentBooking.farmerId && currentBooking.farmerId === lot.farmerId)) {
+                currentBooking.grossWeight = record.grossWeight;
+                currentBooking.tareWeight = record.tareWeight;
+                currentBooking.netWeight = record.netWeight;
+                currentBooking.quantity = record.netWeight;
+                currentBooking.amount = "₹" + record.procurementValue.toLocaleString("en-IN");
+                currentBooking.stage = "Quality Inspection Lab";
+                currentBooking.stageCode = "quality_lab";
+                currentBooking.weighbridgeStatus = "COMPLETED";
+                currentBooking.weighbridgeReceiptId = record.receiptId;
+                if (typeof saveCurrentBooking === "function") saveCurrentBooking();
+                if (typeof updateDashboardAfterBooking === "function") updateDashboardAfterBooking();
+            }
+        }
+
+        // Publish real-time sync events
+        if (typeof KisanSync !== "undefined") {
+            KisanSync.publish(KisanEvents.WEIGHBRIDGE_COMPLETED, {
+                id: record.bookingId,
+                token: record.tokenId,
+                farmerId: record.farmerId,
+                farmerName: record.farmerName,
+                crop: record.crop,
+                grossWeight: record.grossWeight,
+                tareWeight: record.tareWeight,
+                netWeight: record.netWeight,
+                netWeightKg: record.netWeightKg,
+                amount: "₹" + record.procurementValue.toLocaleString("en-IN"),
+                receiptId: record.receiptId,
+                officer: officerName,
+                timestamp: record.timestamp
+            });
+
+            KisanSync.publish(KisanEvents.QUALITY_WORKFLOW_READY, {
+                id: record.bookingId,
+                token: record.tokenId,
+                farmerId: record.farmerId,
+                farmerName: record.farmerName,
+                crop: record.crop,
+                netWeight: record.netWeight
+            });
+
+            KisanSync.publish(KisanEvents.OFFICER_STAGE_ADVANCED, {
+                id: record.bookingId,
+                token: record.tokenId,
+                farmerId: record.farmerId,
+                farmerName: record.farmerName,
+                stage: record.stage,
+                stageCode: record.stageCode,
+                amount: "₹" + record.procurementValue.toLocaleString("en-IN")
+            });
+        }
+
+        // Send notifications
+        if (typeof KisanNotifications !== "undefined") {
+            KisanNotifications.addNotification({
+                type: KisanEvents.WEIGHBRIDGE_COMPLETED,
+                title: "Weighbridge Weighment Completed",
+                message: `Weighment verified for Token #${record.tokenId} (${record.farmerName}): Net ${record.netWeight} Q (${record.netWeightKg} kg). Moving to AI Quality Lab.`,
+                targetRole: "officer",
+                icon: "fa-scale-balanced",
+                badgeType: "success",
+                entity: { tokenId: record.tokenId, netWeight: record.netWeight, grossWeight: record.grossWeight, tareWeight: record.tareWeight }
+            });
+
+            KisanNotifications.addNotification({
+                type: KisanEvents.WEIGHBRIDGE_COMPLETED,
+                title: "Weighbridge Completed — Net Weight Verified",
+                message: `Your vehicle weighment is complete. Verified Net Weight: ${record.netWeight} Quintals (${record.netWeightKg} kg). Please proceed to AI Quality Testing Lab.`,
+                targetRole: "farmer",
+                icon: "fa-scale-balanced",
+                badgeType: "success",
+                entity: { tokenId: record.tokenId, netWeight: record.netWeight, grossWeight: record.grossWeight, tareWeight: record.tareWeight },
+                broadcast: false
+            });
+        }
+
+        if (typeof showToast === "function") {
+            showToast(`✅ Weighment verified for Token #${record.tokenId}! Net: ${record.netWeight} Q (Slip #${record.receiptId}).`, "success");
+        }
+
+        if (typeof renderOfficerQueueTable === "function") renderOfficerQueueTable();
+        if (typeof updateOfficerStats === "function") updateOfficerStats();
+
+        // Auto-advance directly to Task 4 Quality Inspection Modal if requested
+        if (autoAdvanceToQuality) {
+            setTimeout(() => {
+                if (typeof openQualityInspectionModal === "function") {
+                    openQualityInspectionModal(record.bookingId);
+                }
+            }, 300);
+        }
+
+        return { success: true, record: record };
+    }
+
+    function openWeighbridgeModal(targetBookingId) {
+        let matched = null;
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            if (targetBookingId) {
+                matched = yardQueueData.find(f => f.id === targetBookingId || f.token === targetBookingId);
+            }
+            if (!matched) {
+                matched = yardQueueData.find(f => f.stageCode === "gross_weighing" || f.stageCode === "gate_in" || f.weighbridgeStatus !== "COMPLETED") || yardQueueData[0];
+            }
+        }
+
+        if (!matched && typeof currentBooking !== "undefined" && currentBooking) {
+            matched = currentBooking;
+        }
+
+        const b = matched || {
+            id: "KS748291",
+            token: "07",
+            farmerName: "Ramesh Kumar",
+            farmerId: "KS102458",
+            crop: "Paddy / Rice (Grade A)",
+            quantity: 21.5,
+            vehicleNo: "AP-07-TY-4920",
+            vehicleType: "Tractor Trolley",
+            stage: "Gross Weighbridge"
+        };
+
+        const existingRecord = getRecordForBooking(b.id);
+        const estQty = parseFloat(b.quantity) || 20.0;
+        const initialGross = existingRecord ? existingRecord.grossWeight : parseFloat((estQty + 5.20).toFixed(2));
+        const initialTare = existingRecord ? existingRecord.tareWeight : 5.20;
+        const initialVal = validateWeighment(initialGross, initialTare, b.crop);
+
+        startWeighing(b.id);
+
+        const content = `
+            <div class="weighbridge-modal-wrapper">
+                <!-- Header Live Banner -->
+                <div class="weighbridge-console-banner">
+                    <div class="weighbridge-console-meta">
+                        <div class="weighbridge-console-badge">
+                            <i class="fa-solid fa-scale-unbalanced-flip"></i> MANDI ELECTRONIC WEIGHBRIDGE CONSOLE • COUNTER 1
+                        </div>
+                        <h3 style="margin:4px 0 2px; font-size:17px; color:#174d32; font-weight:800;">
+                            Token #${b.token || '07'} — ${b.farmerName || 'Ramesh Kumar'}
+                        </h3>
+                        <p style="margin:0; font-size:12px; color:#5c6c63;">
+                            ID: <strong>${b.farmerId || 'KS102458'}</strong> • Crop: <strong>${b.crop || 'Paddy / Rice (Grade A)'}</strong> • Vehicle: <strong>${b.vehicleNo || 'AP-07-TY-4920'}</strong> (${b.vehicleType || 'Tractor Trolley'})
+                        </p>
+                    </div>
+                    <div class="weighbridge-gate-pill">
+                        <span class="live-pulse-dot"></span> Gate 1 Inbound
+                    </div>
+                </div>
+
+                <!-- Digital Scale Live Display Panel -->
+                <div class="digital-scale-dial-panel">
+                    <div class="digital-scale-header">
+                        <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:#166534;">
+                            <i class="fa-solid fa-microchip"></i> Real-Time Load Cell Sensor Reading
+                        </span>
+                        <span id="wbLiveClock" style="font-family:monospace; font-size:12px; font-weight:700; color:#15803d;">LIVE SENSOR READY</span>
+                    </div>
+
+                    <div class="digital-scale-grid">
+                        <div class="digital-meter-card">
+                            <span class="meter-label">1. GROSS WEIGHT (LOADED)</span>
+                            <div class="meter-value" id="wbDisplayGross">${initialVal.grossWeight.toFixed(2)} <span class="meter-unit">Q</span></div>
+                            <span class="meter-sub" id="wbDisplayGrossKg">${(initialVal.grossWeight * 100).toFixed(0)} kg (Tractor + Crop)</span>
+                        </div>
+                        <div class="digital-meter-separator"><i class="fa-solid fa-minus"></i></div>
+                        <div class="digital-meter-card">
+                            <span class="meter-label">2. TARE WEIGHT (EMPTY)</span>
+                            <div class="meter-value" id="wbDisplayTare" style="color:#d97706;">${initialVal.tareWeight.toFixed(2)} <span class="meter-unit">Q</span></div>
+                            <span class="meter-sub" id="wbDisplayTareKg">${(initialVal.tareWeight * 100).toFixed(0)} kg (Vehicle Tare)</span>
+                        </div>
+                        <div class="digital-meter-separator"><i class="fa-solid fa-equals"></i></div>
+                        <div class="digital-meter-card digital-meter-net">
+                            <span class="meter-label">3. VERIFIED NET WEIGHT</span>
+                            <div class="meter-value" id="wbDisplayNet" style="color:#15803d;">${initialVal.netWeight.toFixed(2)} <span class="meter-unit">Q</span></div>
+                            <span class="meter-sub" id="wbDisplayNetKg">${initialVal.netWeightKg.toFixed(0)} kg Net Crop Procured</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weighment Input & Preset Controls Form -->
+                <form id="weighbridgeForm" onsubmit="event.preventDefault(); KisanWeighbridge.handleFormSubmit('${b.id}');">
+                    
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px;">
+                        <div class="form-group">
+                            <label style="font-size:12.5px; font-weight:700; color:#1e293b;">
+                                <i class="fa-solid fa-scale-unbalanced" style="color:#0284c7;"></i> Gross Weight (Loaded Vehicle in Quintals) *
+                            </label>
+                            <input type="number" id="wbInputGross" class="custom-select" step="0.01" min="0.1" max="500" value="${initialVal.grossWeight}" required oninput="KisanWeighbridge.recalculateLive('${b.crop}')">
+                            <span style="font-size:11px; color:#64748b;">Includes vehicle tare + harvested grain payload</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label style="font-size:12.5px; font-weight:700; color:#1e293b;">
+                                <i class="fa-solid fa-scale-balanced" style="color:#d97706;"></i> Tare Weight (Empty Vehicle in Quintals) *
+                            </label>
+                            <input type="number" id="wbInputTare" class="custom-select" step="0.01" min="0" max="500" value="${initialVal.tareWeight}" required oninput="KisanWeighbridge.recalculateLive('${b.crop}')">
+                            <span style="font-size:11px; color:#64748b;">Empty vehicle/trolley certified weight</span>
+                        </div>
+                    </div>
+
+                    <!-- Quick Tare Weight Vehicle Presets -->
+                    <div class="weighbridge-preset-box">
+                        <span style="font-size:11.5px; font-weight:700; color:#475569; display:block; margin-bottom:6px;">
+                            <i class="fa-solid fa-truck-ramp-box"></i> Quick Vehicle Tare Weight Presets:
+                        </span>
+                        <div class="weighbridge-preset-grid">
+                            ${TARE_PRESETS.map(p => `
+                                <button type="button" class="tare-preset-chip ${p.weight === initialVal.tareWeight ? 'active' : ''}" onclick="KisanWeighbridge.applyTarePreset(${p.weight}, '${b.crop}', this)">
+                                    <i class="fa-solid ${p.icon}"></i>
+                                    <strong>${p.label}</strong>
+                                    <span>${p.weight} Q (${p.weight * 100} kg)</span>
+                                </button>
+                            `).join("")}
+                        </div>
+                    </div>
+
+                    <!-- Live Dynamic Valuation & Legal Assurance Box -->
+                    <div class="weighbridge-summary-card" id="wbSummaryCard">
+                        <div class="wb-calc-row">
+                            <span>Applicable Govt MSP Rate (${b.crop}):</span>
+                            <strong>₹${initialVal.mspRate.toLocaleString("en-IN")} / Quintal</strong>
+                        </div>
+                        <div class="wb-calc-row">
+                            <span>Calculated Verified Net Quantity:</span>
+                            <strong id="wbSummaryNet">${initialVal.netWeight.toFixed(2)} Quintals (${initialVal.netWeightKg} kg)</strong>
+                        </div>
+                        <div class="wb-calc-row wb-calc-total">
+                            <span>Total Estimated Procurement Value:</span>
+                            <strong id="wbSummaryPayout" style="color:#15803d; font-size:16px;">₹${initialVal.procurementValue.toLocaleString("en-IN")}</strong>
+                        </div>
+                    </div>
+
+                    <!-- Validation Error Box -->
+                    <div id="wbValidationError" class="wb-error-banner" style="${initialVal.valid ? 'display:none;' : 'display:flex;'}">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span id="wbErrorText">${initialVal.error || ''}</span>
+                    </div>
+
+                    <!-- Operator Notes -->
+                    <div class="form-group" style="margin-top:10px;">
+                        <label style="font-size:12px; font-weight:600; color:#475569;">Weighbridge Operator Inspection Remarks</label>
+                        <input type="text" id="wbOperatorNotes" class="custom-select" style="font-size:12px; padding:7px 10px;" placeholder="e.g. Weighbridge calibrated today. Clean tractor trolley unhindered intake." value="Electronic Loadcell #WB-01 Calibrated • Verified Intake">
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display:flex; gap:10px; margin-top:16px;">
+                        <button type="button" class="submit-auth-btn" style="background:#f1f5f9; color:#475569; flex:1;" onclick="closeModal()">
+                            Cancel
+                        </button>
+                        <button type="button" class="submit-auth-btn" style="background:#0284c7; color:#fff; flex:1.2;" onclick="KisanWeighbridge.saveDraftOnly('${b.id}')">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Weighment Slip
+                        </button>
+                        <button type="submit" class="submit-auth-btn register-btn" style="flex:1.8; background:#166534;">
+                            <i class="fa-solid fa-arrow-right"></i> Confirm & Move to AI Quality Lab
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        `;
+
+        openModal("⚖️ Digital Weighbridge Console • Gate Intake & Weighment", content);
+    }
+
+    function recalculateLive(crop) {
+        const grossInput = document.getElementById("wbInputGross");
+        const tareInput = document.getElementById("wbInputTare");
+        if (!grossInput || !tareInput) return;
+
+        const val = validateWeighment(grossInput.value, tareInput.value, crop);
+
+        const gElem = document.getElementById("wbDisplayGross");
+        const gKgElem = document.getElementById("wbDisplayGrossKg");
+        const tElem = document.getElementById("wbDisplayTare");
+        const tKgElem = document.getElementById("wbDisplayTareKg");
+        const nElem = document.getElementById("wbDisplayNet");
+        const nKgElem = document.getElementById("wbDisplayNetKg");
+        const sNet = document.getElementById("wbSummaryNet");
+        const sPayout = document.getElementById("wbSummaryPayout");
+        const errBanner = document.getElementById("wbValidationError");
+        const errText = document.getElementById("wbErrorText");
+
+        if (gElem) gElem.innerHTML = `${val.grossWeight.toFixed(2)} <span class="meter-unit">Q</span>`;
+        if (gKgElem) gKgElem.textContent = `${(val.grossWeight * 100).toFixed(0)} kg (Tractor + Crop)`;
+        if (tElem) tElem.innerHTML = `${val.tareWeight.toFixed(2)} <span class="meter-unit">Q</span>`;
+        if (tKgElem) tKgElem.textContent = `${(val.tareWeight * 100).toFixed(0)} kg (Vehicle Tare)`;
+
+        if (nElem) nElem.innerHTML = `${val.netWeight.toFixed(2)} <span class="meter-unit">Q</span>`;
+        if (nKgElem) nKgElem.textContent = `${val.netWeightKg.toFixed(0)} kg Net Crop Procured`;
+        if (sNet) sNet.textContent = `${val.netWeight.toFixed(2)} Quintals (${val.netWeightKg} kg)`;
+        if (sPayout) sPayout.textContent = `₹${val.procurementValue.toLocaleString("en-IN")}`;
+
+        if (errBanner && errText) {
+            if (!val.valid) {
+                errBanner.style.display = "flex";
+                errText.textContent = val.error;
+            } else {
+                errBanner.style.display = "none";
+            }
+        }
+    }
+
+    function applyTarePreset(weight, crop, btn) {
+        const tareInput = document.getElementById("wbInputTare");
+        if (tareInput) {
+            tareInput.value = weight.toFixed(2);
+            recalculateLive(crop);
+        }
+        document.querySelectorAll(".tare-preset-chip").forEach(c => c.classList.remove("active"));
+        if (btn) btn.classList.add("active");
+    }
+
+    function handleFormSubmit(bookingId) {
+        const grossInput = document.getElementById("wbInputGross");
+        const tareInput = document.getElementById("wbInputTare");
+        const notesInput = document.getElementById("wbOperatorNotes");
+
+        const gross = grossInput ? parseFloat(grossInput.value) : 0;
+        const tare = tareInput ? parseFloat(tareInput.value) : 0;
+        const notes = notesInput ? notesInput.value : "";
+
+        const res = confirmWeighment({
+            bookingId: bookingId,
+            grossWeight: gross,
+            tareWeight: tare,
+            operatorNotes: notes,
+            autoAdvanceToQuality: true
+        });
+
+        if (!res.success) {
+            alert(res.error);
+        }
+    }
+
+    function saveDraftOnly(bookingId) {
+        const grossInput = document.getElementById("wbInputGross");
+        const tareInput = document.getElementById("wbInputTare");
+        const notesInput = document.getElementById("wbOperatorNotes");
+
+        const gross = grossInput ? parseFloat(grossInput.value) : 0;
+        const tare = tareInput ? parseFloat(tareInput.value) : 0;
+        const notes = notesInput ? notesInput.value : "";
+
+        const res = confirmWeighment({
+            bookingId: bookingId,
+            grossWeight: gross,
+            tareWeight: tare,
+            operatorNotes: notes,
+            autoAdvanceToQuality: false
+        });
+
+        if (res.success) {
+            closeModal();
+            openWeighbridgeReceiptModal(bookingId);
+        } else {
+            alert(res.error);
+        }
+    }
+
+    function openWeighbridgeReceiptModal(bookingId) {
+        let b = null;
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            if (bookingId) b = yardQueueData.find(f => f.id === bookingId || f.token === bookingId);
+        }
+        if (!b && typeof currentBooking !== "undefined" && currentBooking) {
+            b = currentBooking;
+        }
+
+        const bookingKey = (b && b.id) || bookingId || "KS748291";
+        let rec = getRecordForBooking(bookingKey);
+
+        if (!rec) {
+            // Synthesize from active booking data if weighment was just completed
+            const qty = (b && parseFloat(b.quantity)) || 21.50;
+            const gross = (b && parseFloat(b.grossWeight)) || parseFloat((qty + 5.20).toFixed(2));
+            const tare = (b && parseFloat(b.tareWeight)) || 5.20;
+            const net = parseFloat((gross - tare).toFixed(2));
+            const crop = (b && b.crop) || "Paddy / Rice (Grade A)";
+            const msp = getMspRateForCrop(crop);
+
+            rec = {
+                receiptId: "WB-REC-2026-" + bookingKey.replace(/[^0-9]/g, ''),
+                bookingId: bookingKey,
+                tokenId: (b && b.token) || "07",
+                farmerId: (b && b.farmerId) || "KS102458",
+                farmerName: (b && b.farmerName) || "Ramesh Kumar",
+                crop: crop,
+                vehicleNo: (b && b.vehicleNo) || "AP-07-TY-4920",
+                vehicleType: (b && b.vehicleType) || "Tractor Trolley",
+                grossWeight: gross,
+                tareWeight: tare,
+                netWeight: net,
+                netWeightKg: net * 100,
+                unit: "Quintals",
+                mspRate: msp,
+                procurementValue: Math.round(net * msp),
+                weighbridgeStatus: "COMPLETED",
+                officerName: "Officer S. Sharma",
+                operatorNotes: "Electronic Weighbridge #WB-01 Calibrated Record",
+                timestamp: Date.now()
+            };
+        }
+
+        const dateStr = new Date(rec.timestamp).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = new Date(rec.timestamp).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' });
+
+        const content = `
+            <div class="weighbridge-receipt-wrap">
+                <!-- Certificate Header -->
+                <div class="wb-receipt-header">
+                    <span class="wb-receipt-seal-badge">
+                        <i class="fa-solid fa-building-columns"></i> GOVT OF ANDHRA PRADESH • AGRICULTURAL MARKETING DEPT
+                    </span>
+                    <h3 style="margin:6px 0 2px; font-size:16px; color:#174d32; font-weight:800;">
+                        DIGITAL WEIGHBRIDGE WEIGHMENT CERTIFICATE (FORM W-1)
+                    </h3>
+                    <p style="margin:0; font-size:11.5px; color:#5c6c63;">
+                        AP State Procurement Centre (Yard 1) • Guntur Agricultural Market Committee
+                    </p>
+                    <div style="font-size:11.5px; font-weight:700; color:#166534; margin-top:4px; font-family:monospace;">
+                        Slip No: ${rec.receiptId} • Date: ${dateStr} ${timeStr}
+                    </div>
+                </div>
+
+                <!-- Farmer & Vehicle Meta -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:12px; margin:14px 0; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <div>
+                        <span style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase; display:block;">FARMER IDENTIFICATION</span>
+                        <strong style="color:#0f172a; font-size:13px;">${rec.farmerName}</strong><br>
+                        <span style="color:#475569;">Farmer ID: <code>${rec.farmerId}</code> • Token: <strong>#${rec.tokenId}</strong></span><br>
+                        <span style="color:#16a34a; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Aadhaar DBT Verified</span>
+                    </div>
+                    <div>
+                        <span style="color:#64748b; font-size:10.5px; font-weight:700; text-transform:uppercase; display:block;">GATE PASS & VEHICLE</span>
+                        <strong style="color:#0f172a; font-size:13px;">Reg: ${rec.vehicleNo}</strong><br>
+                        <span style="color:#475569;">Type: ${rec.vehicleType} • Gate: Gate 1 Inbound</span><br>
+                        <span style="color:#0284c7; font-weight:600;"><i class="fa-solid fa-qrcode"></i> Gate Pass: ${rec.bookingId}</span>
+                    </div>
+                </div>
+
+                <!-- Certified Weight Breakdown Table -->
+                <table class="jform-table" style="font-size:12.5px; margin-bottom:12px;">
+                    <thead>
+                        <tr>
+                            <th>Commodity</th>
+                            <th>Gross Wt (Q)</th>
+                            <th>Tare Wt (Q)</th>
+                            <th>Verified Net Wt</th>
+                            <th>Govt MSP Rate</th>
+                            <th>Est. Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>${rec.crop}</strong></td>
+                            <td>${rec.grossWeight.toFixed(2)} Q</td>
+                            <td>${rec.tareWeight.toFixed(2)} Q</td>
+                            <td><strong style="color:#15803d; font-size:13.5px;">${rec.netWeight.toFixed(2)} Q</strong> (${rec.netWeightKg} kg)</td>
+                            <td>₹${rec.mspRate.toLocaleString("en-IN")} / Q</td>
+                            <td><strong style="color:#174d32; font-size:14px;">₹${rec.procurementValue.toLocaleString("en-IN")}</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Status & Quality Info -->
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 14px; border-radius:8px; font-size:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <div>
+                        <span style="color:#166534; font-weight:700; display:block;"><i class="fa-solid fa-check-double"></i> WEIGHMENT STATUS: CERTIFIED & LOCKED</span>
+                        <span style="font-size:11px; color:#475569;">Next Stage: Mandatory AI-Assisted Grain Quality Inspection Lab</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <span class="status-badge confirmed" style="font-size:11px;">VERIFIED</span>
+                    </div>
+                </div>
+
+                <!-- Digital Signatures & Cryptographic Seal -->
+                <div class="jform-seal" style="margin-top:10px;">
+                    <div>
+                        <i class="fa-solid fa-qrcode" style="font-size:26px; color:#166534;"></i>
+                        <span style="display:block; font-size:9px; color:#64748b; margin-top:2px;">Digital Cryptographic Seal: KS-WB-SIG-${rec.receiptId.replace(/[^0-9]/g, '')}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <strong>${rec.officerName}</strong><br>
+                        <span style="font-size:10.5px; color:#64748b;">Mandi Weighbridge Incharge (Counter 1)</span>
+                    </div>
+                </div>
+
+                <!-- Action Footer -->
+                <div style="display:flex; gap:10px; margin-top:16px;">
+                    <button type="button" class="submit-auth-btn" style="flex:1;" onclick="window.print()">
+                        <i class="fa-solid fa-print"></i> Print Weighment Slip
+                    </button>
+                    <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="showToast('Weighment Slip downloaded successfully!'); closeModal();">
+                        <i class="fa-solid fa-file-arrow-down"></i> Download Slip (PDF)
+                    </button>
+                </div>
+            </div>
+        `;
+
+        openModal("⚖️ Digital Weighbridge Weighment Slip (Form W-1)", content);
+    }
+
+    function getWeighbridgeStats() {
+        const records = getWeighbridgeRecords();
+        const totalNetQuintals = records.reduce((sum, r) => sum + (r.netWeight || 0), 0);
+        const totalValue = records.reduce((sum, r) => sum + (r.procurementValue || 0), 0);
+        
+        let pendingCount = 0;
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            pendingCount = yardQueueData.filter(f => f.stageCode === "gross_weighing" || f.stageCode === "gate_in").length;
+        }
+
+        return {
+            recordsCount: records.length,
+            totalNetQuintals: parseFloat(totalNetQuintals.toFixed(2)),
+            totalValue: totalValue,
+            pendingWeighments: pendingCount
+        };
+    }
+
+    return {
+        getWeighbridgeRecords,
+        saveWeighbridgeRecord,
+        getRecordForBooking,
+        validateWeighment,
+        startWeighing,
+        confirmWeighment,
+        openWeighbridgeModal,
+        openWeighbridgeReceiptModal,
+        getWeighbridgeStats,
+        recalculateLive,
+        applyTarePreset,
+        handleFormSubmit,
+        saveDraftOnly
+    };
+})();
+
+if (typeof window !== "undefined") window.KisanWeighbridge = KisanWeighbridge;
+if (typeof global !== "undefined") global.KisanWeighbridge = KisanWeighbridge;
+
+// Global accessible wrappers for Task 09
+function openWeighbridgeModal(targetBookingId) {
+    KisanWeighbridge.openWeighbridgeModal(targetBookingId);
+}
+
+function openWeighbridgeReceiptModal(bookingId) {
+    KisanWeighbridge.openWeighbridgeReceiptModal(bookingId);
+}
+
+/* =========================================================
    TASK 04: KISANGRAINAI — AI-ASSISTED GRAIN QUALITY & DEFECT DETECTION
    Client-Side Computer Vision & Heuristic Assessment Engine
    Advisory Preliminary Visual Assessment (DoCA Quality Norms)
@@ -1782,6 +2577,13 @@ const KisanGrainAI = (function() {
                         <div class="ai-farmer-info">
                             <h4>${activeState.farmerName}</h4>
                             <p>Farmer ID: <strong>${activeState.farmerId}</strong> • ${activeState.crop} (${b.quantity || 21.5} Quintals)</p>
+                            ${(typeof KisanWeighbridge !== "undefined" && KisanWeighbridge.getRecordForBooking(activeState.bookingId)) ? `
+                                <div style="margin-top:4px;">
+                                    <span style="background:#e0f2fe; color:#0369a1; font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; display:inline-flex; align-items:center; gap:4px;">
+                                        <i class="fa-solid fa-scale-balanced"></i> Weighbridge Verified: Net ${KisanWeighbridge.getRecordForBooking(activeState.bookingId).netWeight} Q (${KisanWeighbridge.getRecordForBooking(activeState.bookingId).netWeightKg} kg)
+                                    </span>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                     <div>
@@ -2244,6 +3046,19 @@ const KisanGrainAI = (function() {
                     qItem.stage = "Tare Weighbridge";
                     qItem.status = "Quality Approved";
                     qItem.moisture = `${record.moisture} (${record.grade.split(' ')[0]})`;
+
+                    // Link verified weighbridge net weight if record exists
+                    if (typeof KisanWeighbridge !== "undefined") {
+                        const wb = KisanWeighbridge.getRecordForBooking(activeState.bookingId);
+                        if (wb) {
+                            qItem.grossWeight = wb.grossWeight;
+                            qItem.tareWeight = wb.tareWeight;
+                            qItem.netWeight = wb.netWeight;
+                            qItem.quantity = wb.netWeight;
+                            qItem.amount = "₹" + wb.procurementValue.toLocaleString("en-IN");
+                            qItem.weighbridgeReceiptId = wb.receiptId;
+                        }
+                    }
                 } else if (decision === "HOLD") {
                     qItem.status = "On Hold (Manual Lab)";
                     qItem.stage = "Quality Inspection On Hold";
@@ -2265,6 +3080,18 @@ const KisanGrainAI = (function() {
                     currentBooking.stage = "Tare Weighbridge";
                     currentBooking.status = "Quality Approved";
                     currentBooking.moisture = `${record.moisture} (${record.grade.split(' ')[0]})`;
+
+                    if (typeof KisanWeighbridge !== "undefined") {
+                        const wb = KisanWeighbridge.getRecordForBooking(activeState.bookingId);
+                        if (wb) {
+                            currentBooking.grossWeight = wb.grossWeight;
+                            currentBooking.tareWeight = wb.tareWeight;
+                            currentBooking.netWeight = wb.netWeight;
+                            currentBooking.quantity = wb.netWeight;
+                            currentBooking.amount = "₹" + wb.procurementValue.toLocaleString("en-IN");
+                            currentBooking.weighbridgeReceiptId = wb.receiptId;
+                        }
+                    }
                 } else if (decision === "HOLD") {
                     currentBooking.status = "On Hold";
                     currentBooking.stage = "Quality Inspection On Hold";
@@ -2289,6 +3116,16 @@ const KisanGrainAI = (function() {
                     grade: record.grade,
                     score: record.overallScore,
                     officer: officerName
+                });
+
+                KisanSync.publish(KisanEvents.PROCUREMENT_READY, {
+                    id: activeState.bookingId,
+                    token: activeState.token,
+                    farmerId: activeState.farmerId,
+                    farmerName: activeState.farmerName,
+                    crop: activeState.crop,
+                    grade: record.grade,
+                    moisture: record.moisture
                 });
             } else if (decision === "HOLD") {
                 KisanSync.publish(KisanEvents.QUALITY_ON_HOLD, {
@@ -2549,6 +3386,11 @@ const KisanVani = (function() {
             qualityRecord = KisanGrainAI.getRecordForBooking(b.id) || KisanGrainAI.getRecordForBooking(b.token);
         }
 
+        let weighbridgeRecord = null;
+        if (typeof KisanWeighbridge !== "undefined" && typeof KisanWeighbridge.getRecordForBooking === "function") {
+            weighbridgeRecord = KisanWeighbridge.getRecordForBooking(b.id) || KisanWeighbridge.getRecordForBooking(b.token);
+        }
+
         let unreadCount = 0;
         let latestNotification = null;
         if (typeof KisanNotifications !== "undefined") {
@@ -2563,13 +3405,25 @@ const KisanVani = (function() {
             }
         }
 
+        const grossWt = weighbridgeRecord ? weighbridgeRecord.grossWeight : (b.grossWeight || 26.70);
+        const tareWt = weighbridgeRecord ? weighbridgeRecord.tareWeight : (b.tareWeight || 5.20);
+        const netWt = weighbridgeRecord ? weighbridgeRecord.netWeight : (b.netWeight || (parseFloat(b.quantity) || 21.50));
+        const netWtKg = weighbridgeRecord ? weighbridgeRecord.netWeightKg : (netWt * 100);
+        const wbReceipt = weighbridgeRecord ? weighbridgeRecord.receiptId : (b.weighbridgeReceiptId || "WB-REC-2026-748291");
+
         return {
             farmerName: b.farmerName || (user ? user.name : "Ramesh Kumar"),
             farmerId: b.farmerId || (user ? user.farmerId : "KS102458"),
             bookingId: b.id || "KS748291",
             token: b.token || "07",
             crop: b.crop || "Paddy / Rice",
-            quantity: b.quantity ? `${b.quantity} Quintals` : "21.5 Quintals",
+            quantity: b.quantity ? `${b.quantity} Quintals` : `${netWt} Quintals`,
+            grossWeight: grossWt,
+            tareWeight: tareWt,
+            netWeight: netWt,
+            netWeightKg: netWtKg,
+            weighbridgeReceiptId: wbReceipt,
+            weighbridgeStatus: b.weighbridgeStatus || (weighbridgeRecord ? "COMPLETED" : "PENDING"),
             slotDate: b.date || "Tomorrow",
             slotTime: b.time || "10:30 AM",
             centre: b.centre || "AP State Procurement Centre, Guntur Yard (Yard 1)",
@@ -2581,6 +3435,7 @@ const KisanVani = (function() {
             farmersAhead,
             estimatedWait,
             qualityRecord,
+            weighbridgeRecord,
             unreadCount,
             latestNotification
         };
@@ -2588,6 +3443,15 @@ const KisanVani = (function() {
 
     function detectIntent(rawQuery, lang) {
         const q = (rawQuery || "").toLowerCase().trim();
+
+        // 0. Weighbridge & Weight Calculation queries (Task 09)
+        if (
+            q.includes("weight") || q.includes("weighbridge") || q.includes("gross weight") || q.includes("tare weight") || q.includes("net weight") || q.includes("weighment slip") || q.includes("weighment receipt") || q.includes("weigh slip") || q.includes("how much weight") || q.includes("my weight") ||
+            q.includes("బరువు") || q.includes("వేబ్రిడ్జి") || q.includes("తూకం") || q.includes("నికర బరువు") || q.includes("స్థూల బరువు") || q.includes("ఖాళీ బరువు") || q.includes("వేయింగ్ స్లిప్") || q.includes("రసీదు") ||
+            q.includes("वजन") || q.includes("तौल") || q.includes("वेईब्रिज") || q.includes("ग्रॉस") || q.includes("टार") || q.includes("नेट वजन") || q.includes("तौल पर्ची") || q.includes("कांटा")
+        ) {
+            return "WEIGHBRIDGE_STATUS";
+        }
 
         // 1. Existing Slot Information & Timing queries ("When is MY slot?")
         if (
@@ -2727,7 +3591,7 @@ const KisanVani = (function() {
         let lang = rawLang || currentLanguage;
         let ctx = rawCtx;
 
-        const KNOWN_INTENTS = ["QUEUE_STATUS", "QR_HELP", "QUALITY_STATUS", "PAYMENT_STATUS", "GRIEVANCE_HELP", "CENTRE_INFORMATION", "NOTIFICATIONS", "SMART_SLOT", "SLOT_INFORMATION", "BOOKING_STATUS", "YARD_MAP", "GENERAL_HELP", "UNKNOWN"];
+        const KNOWN_INTENTS = ["WEIGHBRIDGE_STATUS", "QUEUE_STATUS", "QR_HELP", "QUALITY_STATUS", "PAYMENT_STATUS", "GRIEVANCE_HELP", "CENTRE_INFORMATION", "NOTIFICATIONS", "SMART_SLOT", "SLOT_INFORMATION", "BOOKING_STATUS", "YARD_MAP", "GENERAL_HELP", "UNKNOWN"];
         if (!KNOWN_INTENTS.includes(intentOrQuery)) {
             query = intentOrQuery;
             lang = rawQueryOrLang || currentLanguage;
@@ -2739,6 +3603,19 @@ const KisanVani = (function() {
         let actions = [];
 
         switch (intent) {
+            case "WEIGHBRIDGE_STATUS":
+                if (lang === "te") {
+                    text = `మీ వాహనం వేబ్రిడ్జి వివరాలు (టోకెన్ #${ctx.token}): స్థూల బరువు ${ctx.grossWeight} Q, ఖాళీ బరువు ${ctx.tareWeight} Q, ధృవీకరించిన నికర బరువు ${ctx.netWeight} Q (${ctx.netWeightKg} కిలోలు). అంచనా మొత్తం: ${ctx.amount}. రసీదు నంబర్: ${ctx.weighbridgeReceiptId}.`;
+                } else if (lang === "hi") {
+                    text = `आपकी वेईब्रिज तौल जानकारी (टोकन #${ctx.token}): ग्रॉस वजन ${ctx.grossWeight} Q, खाली वाहन वजन ${ctx.tareWeight} Q, सत्यापित शुद्ध वजन ${ctx.netWeight} Q (${ctx.netWeightKg} किलो)। अनुमानित राशि: ${ctx.amount}। तौल पर्ची #${ctx.weighbridgeReceiptId}।`;
+                } else {
+                    text = `Weighbridge Weighment Record (Token #${ctx.token}): Gross Weight ${ctx.grossWeight} Q, Empty Tare ${ctx.tareWeight} Q, Verified Net Weight ${ctx.netWeight} Q (${ctx.netWeightKg} kg). Est. Value: ${ctx.amount}. Weighment Slip #${ctx.weighbridgeReceiptId}.`;
+                }
+                actions.push({
+                    label: lang === "te" ? "తూకం రసీదు చూడండి" : (lang === "hi" ? "तौल पर्ची देखें" : "View Weighment Slip"),
+                    onclick: "openWeighbridgeReceiptModal()"
+                });
+                break;
             case "YARD_MAP":
                 const jData = (typeof KisanYardMap !== "undefined" && typeof KisanYardMap.getFarmerJourney === "function")
                     ? KisanYardMap.getFarmerJourney(ctx.bookingId || ctx.token)
@@ -3888,17 +4765,24 @@ const KisanAnalytics = (function() {
         const history = (typeof bookingHistory !== "undefined" && Array.isArray(bookingHistory)) ? bookingHistory : [];
         const current = (typeof currentBooking !== "undefined" && currentBooking) ? currentBooking : null;
         let qualityRecords = [];
+        let weighbridgeRecords = [];
         try {
             const rawQ = localStorage.getItem("kisanSetuQualityRecords");
             qualityRecords = rawQ ? JSON.parse(rawQ) : [];
         } catch (e) {
             qualityRecords = [];
         }
-        return { queue, history, current, qualityRecords };
+        try {
+            const rawW = localStorage.getItem("kisanSetuWeighbridgeRecords");
+            weighbridgeRecords = rawW ? JSON.parse(rawW) : [];
+        } catch (e) {
+            weighbridgeRecords = [];
+        }
+        return { queue, history, current, qualityRecords, weighbridgeRecords };
     }
 
     function calculateDashboardMetrics(state = getLiveState()) {
-        const { queue, history, current, qualityRecords } = state;
+        const { queue, history, current, qualityRecords, weighbridgeRecords = [] } = state;
 
         // 1. Total Registered Bookings
         const bookingIds = new Set();
@@ -3918,11 +4802,11 @@ const KisanAnalytics = (function() {
         const completedLots = queue.filter(f => f.stageCode === "completed").length;
         const totalCompleted = completedLots + 18;
 
-        // 5. Total Quantity Procured (Numeric Q)
+        // 5. Total Quantity Procured (Numeric Q - using verified net weight where available)
         let totalQuantity = 342.5;
         if (completedLots > 0) {
             queue.filter(f => f.stageCode === "completed").forEach(f => {
-                const qVal = parseFloat(f.quantity) || 0;
+                const qVal = parseFloat(f.netWeight || f.quantity) || 0;
                 if (qVal > 0) totalQuantity += qVal;
             });
         }
@@ -3935,9 +4819,14 @@ const KisanAnalytics = (function() {
         const approvedCount = qualityRecords.length > 0 ? qualityRecords.filter(r => r.officerDecision === "APPROVE").length : 17;
         const onHoldCount = qualityRecords.length > 0 ? qualityRecords.filter(r => r.officerDecision === "HOLD").length : 1;
         const rejectedCount = qualityRecords.length > 0 ? qualityRecords.filter(r => r.officerDecision === "REJECT").length : 0;
-        const pendingInspections = queue.filter(f => f.stageCode === "gross_weighing" || f.stageCode === "quality_lab" || f.moisture === "Pending").length;
+        const pendingInspections = queue.filter(f => f.stageCode === "quality_lab" || (f.stageCode === "gross_weighing" && f.weighbridgeStatus === "COMPLETED") || f.moisture === "Pending").length;
 
-        // 8. Payment & DBT Metrics
+        // 8. Weighbridge Specific Metrics
+        const vehiclesWeighedToday = (weighbridgeRecords.length > 0 ? weighbridgeRecords.length : 18) + queue.filter(f => f.weighbridgeStatus === "COMPLETED" || f.stageCode === "tare_weighing" || f.stageCode === "completed").length;
+        const pendingWeighments = queue.filter(f => f.stageCode === "gate_in" || (f.stageCode === "gross_weighing" && f.weighbridgeStatus !== "COMPLETED")).length;
+        const totalVerifiedNetQuantity = weighbridgeRecords.reduce((sum, r) => sum + (r.netWeight || 0), 0);
+
+        // 9. Payment & DBT Metrics
         const pendingDBT = queue.filter(f => f.stageCode === "tare_weighing").length;
         const completedDBT = totalCompleted;
         let totalDisbursedValue = 785450;
@@ -3958,6 +4847,9 @@ const KisanAnalytics = (function() {
             onHoldCount,
             rejectedCount,
             pendingInspections,
+            vehiclesWeighedToday,
+            pendingWeighments,
+            totalVerifiedNetQuantity: parseFloat(totalVerifiedNetQuantity.toFixed(1)),
             pendingDBT,
             completedDBT,
             totalDisbursedValue
@@ -4694,7 +5586,7 @@ const KisanYardMap = (function() {
             zoneMap["zone_gross_weigh"].vehicles.push(l);
         });
 
-        allLots.filter(l => l.stageCode === "quality_check").forEach(l => {
+        allLots.filter(l => l.stageCode === "quality_check" || l.stageCode === "quality_lab").forEach(l => {
             zoneMap["zone_quality_lab"].vehicles.push(l);
         });
 
@@ -5309,6 +6201,14 @@ function openVehicleDetailModal(tokenId) {
 
 const translations = {
     English: {
+        weighBtn: "Weigh",
+        weighbridgeConsole: "Weighbridge Console",
+        grossWeight: "Gross Weight",
+        tareWeight: "Tare Weight",
+        netWeight: "Net Weight",
+        digitalWeighmentSlip: "Digital Weighment Slip",
+        formW1: "Form W-1 Certificate",
+        verifiedNetQuantity: "Verified Net Quantity",
         yardMapNav: "Mandi Yard Map",
         navYardMap: "Mandi Yard Map",
         mandiYardMapBtn: "Live Yard Map",
@@ -5616,6 +6516,14 @@ const translations = {
         cancelBtn: "Cancel"
     },
     Hindi: {
+        weighBtn: "तौलें",
+        weighbridgeConsole: "वेईब्रिज कंसोल",
+        grossWeight: "सकल वजन (ग्रॉस)",
+        tareWeight: "खाली वाहन वजन (टार)",
+        netWeight: "शुद्ध वजन (नेट)",
+        digitalWeighmentSlip: "डिजिटल तौल पर्ची",
+        formW1: "फॉर्म W-1 प्रमाण पत्र",
+        verifiedNetQuantity: "सत्यापित शुद्ध मात्रा",
         yardMapNav: "मंडी यार्ड मानचित्र",
         navYardMap: "मंडी यार्ड मानचित्र",
         mandiYardMapBtn: "लाइव यार्ड मैप",
@@ -5916,6 +6824,14 @@ const translations = {
         cancelBtn: "रद्द करें"
     },
     Telugu: {
+        weighBtn: "తూకం",
+        weighbridgeConsole: "వేబ్రిడ్జి కన్సోల్",
+        grossWeight: "స్థూల బరువు",
+        tareWeight: "ఖాళీ బరువు (టారే)",
+        netWeight: "నికర బరువు",
+        digitalWeighmentSlip: "డిజిటల్ తూకం రసీదు",
+        formW1: "ఫారమ్ W-1 ధృవీకరణ పత్రం",
+        verifiedNetQuantity: "ధృవీకరించిన నికర పరిమాణం",
         yardMapNav: "మార్కెట్ యార్డ్ మ్యాప్",
         navYardMap: "మార్కెట్ యార్డ్ మ్యాప్",
         mandiYardMapBtn: "లైవ్ యార్డ్ మ్యాప్",
@@ -6216,6 +7132,14 @@ const translations = {
         cancelBtn: "రద్దు చేయండి"
     },
     Tamil: {
+        weighBtn: "எடை",
+        weighbridgeConsole: "எடை மேடை பணியகம்",
+        grossWeight: "மொத்த எடை",
+        tareWeight: "வாகன எடை (டேர்)",
+        netWeight: "நிகர எடை",
+        digitalWeighmentSlip: "டிஜிட்டல் எடை சீட்டு",
+        formW1: "படிவம் W-1 சான்றிதழ்",
+        verifiedNetQuantity: "சரிபார்க்கப்பட்ட நிகர அளவு",
         yardMapNav: "மண்டி யார்டு வரைபடம்",
         navYardMap: "மண்டி யார்டு வரைபடம்",
         mandiYardMapBtn: "நேரலை யார்டு மேப்",
@@ -6515,6 +7439,14 @@ const translations = {
         cancelBtn: "ரத்து செய்"
     },
     Kannada: {
+        weighBtn: "ತೂಕ",
+        weighbridgeConsole: "ತೂಕದ ಸೇತುವೆ ಕನ್ಸೋಲ್",
+        grossWeight: "ಒಟ್ಟು ತೂಕ",
+        tareWeight: "ಖಾಲಿ ವಾಹನದ ತೂಕ",
+        netWeight: "ನಿವ್ವಳ ತೂಕ",
+        digitalWeighmentSlip: "ಡಿಜಿಟಲ್ ತೂಕದ ರಶೀದಿ",
+        formW1: "ನಮೂನೆ W-1 ಪ್ರಮಾಣಪತ್ರ",
+        verifiedNetQuantity: "ಪರಿಶೀಲಿಸಿದ ನಿವ್ವಳ ಪ್ರಮಾಣ",
         yardMapNav: "ಮಂಡಿ ಯಾರ್ಡ್ ನಕ್ಷೆ",
         navYardMap: "ಮಂಡಿ ಯಾರ್ಡ್ ನಕ್ಷೆ",
         mandiYardMapBtn: "ಲೈವ್ ಯಾರ್ಡ್ ನಕ್ಷೆ",
@@ -6814,6 +7746,14 @@ const translations = {
         cancelBtn: "ರದ್ದುಮಾಡಿ"
     },
     Malayalam: {
+        weighBtn: "തൂക്കം",
+        weighbridgeConsole: "വെയ്ബ്രിഡ്ജ് കൺസോൾ",
+        grossWeight: "ആകെ ഭാരം",
+        tareWeight: "വാഹന ഭാരം (ടാർ)",
+        netWeight: "അറ്റ ഭാരം",
+        digitalWeighmentSlip: "ഡിജിറ്റൽ വെയ്മെന്റ് സ്ലിപ്പ്",
+        formW1: "ഫോം W-1 സർട്ടിഫിക്കറ്റ്",
+        verifiedNetQuantity: "സ്ഥിരീകരിച്ച അറ്റ അളവ്",
         yardMapNav: "മണ്ടി യാർഡ് മാപ്പ്",
         navYardMap: "മണ്ടി യാർഡ് മാപ്പ്",
         mandiYardMapBtn: "തത്സമയ യാർഡ് മാപ്പ്",
@@ -7352,14 +8292,23 @@ function showToast(message, type = "success") {
         </button>
     `;
 
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => {
+    if (document.body && typeof document.body.appendChild === "function") {
+        document.body.appendChild(toast);
+    }
+    if (typeof requestAnimationFrame !== "undefined") {
+        requestAnimationFrame(() => {
+            if (toast.classList) toast.classList.add("show");
+        });
+    } else if (toast.classList) {
         toast.classList.add("show");
-    });
+    }
 
-    toast.querySelector(".ks-toast-close").onclick = () => {
-        toast.remove();
-    };
+    const closeBtn = toast.querySelector ? toast.querySelector(".ks-toast-close") : null;
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            if (typeof toast.remove === "function") toast.remove();
+        };
+    }
 
     setTimeout(() => {
         if (toast.parentElement) {
@@ -7749,11 +8698,19 @@ function updateDashboardAfterBooking() {
         }
         if (queueWait) queueWait.textContent = "25 mins";
         if (procBadge) {
-            procBadge.textContent = t("processing") || "Processing";
+            procBadge.textContent = currentBooking.stage || (t("processing") || "Processing");
             procBadge.className = "status-badge processing";
         }
-        if (procStatus) procStatus.textContent = t("qualityCheck") || "Quality Check";
-        if (procSub) procSub.textContent = t("weighingCompleted") || "Weighing completed";
+        if (procStatus) procStatus.textContent = currentBooking.stage || (t("qualityCheck") || "Quality Check");
+        
+        const wb = (typeof KisanWeighbridge !== "undefined") ? KisanWeighbridge.getRecordForBooking(currentBooking.id || currentBooking.token) : null;
+        if (procSub) {
+            if (wb) {
+                procSub.innerHTML = `Net Weight: <strong>${wb.netWeight} Q</strong> (${wb.netWeightKg} kg) • <a href="javascript:void(0)" onclick="openWeighbridgeReceiptModal('${currentBooking.id}')" style="color:#0284c7; font-weight:700; text-decoration:underline;"><i class="fa-solid fa-file-invoice"></i> View Slip</a>`;
+            } else {
+                procSub.textContent = t("weighingCompleted") || "Weighing in progress";
+            }
+        }
         if (tlSlot) tlSlot.textContent = `${formatBookingDate(currentBooking.date)} · ${currentBooking.time}`;
     }
 }
@@ -9289,11 +10246,12 @@ function renderOfficerQueueTable() {
 
     tbody.innerHTML = yardQueueData.map((f) => {
         const isCompleted = f.stageCode === "completed";
+        const wbRecord = (typeof KisanWeighbridge !== "undefined") ? KisanWeighbridge.getRecordForBooking(f.id || f.token) : null;
 
         let stageLabel = f.stage;
         if (f.stageCode === "gate_in") stageLabel = t("gateInWaiting") || f.stage;
         else if (f.stageCode === "gross_weighing") stageLabel = t("grossWeighbridge") || f.stage;
-        else if (f.stageCode === "quality_check") stageLabel = t("qualityInspected") || f.stage;
+        else if (f.stageCode === "quality_lab" || f.stageCode === "quality_check") stageLabel = t("qualityInspected") || f.stage;
         else if (f.stageCode === "tare_weighing") stageLabel = t("tareWeighbridge") || f.stage;
         else if (f.stageCode === "completed") stageLabel = t("procurementCompleted") || f.stage;
 
@@ -9308,7 +10266,16 @@ function renderOfficerQueueTable() {
                 </td>
                 <td>
                     <strong>${f.crop}</strong>
-                    <span style="font-size:11.5px; color:#26734d; display:block;">${f.quantity} Quintals • ${f.amount || ''}</span>
+                    ${wbRecord ? `
+                        <span style="font-size:11.5px; color:#15803d; display:block; font-weight:700;">
+                            <i class="fa-solid fa-scale-balanced"></i> Net ${wbRecord.netWeight} Q • ${f.amount || ''}
+                        </span>
+                        <a href="javascript:void(0)" onclick="openWeighbridgeReceiptModal('${f.id}')" style="font-size:10px; color:#0284c7; text-decoration:underline;">
+                            Slip #${wbRecord.receiptId}
+                        </a>
+                    ` : `
+                        <span style="font-size:11.5px; color:#26734d; display:block;">${f.quantity} Quintals • ${f.amount || ''}</span>
+                    `}
                 </td>
                 <td>
                     <strong>${f.vehicleNo}</strong>
@@ -9323,11 +10290,14 @@ function renderOfficerQueueTable() {
                 <td>
                     <div class="officer-action-group">
                         ${!isCompleted ? `
+                            <button type="button" class="officer-btn-sm officer-btn-weigh" onclick="openWeighbridgeModal('${f.id}')" title="Electronic Weighbridge Gross & Tare Weighment" style="background:#0284c7; color:#fff;">
+                                <i class="fa-solid fa-scale-unbalanced"></i> ${t("weighBtn") || "Weigh"}
+                            </button>
                             <button type="button" class="officer-btn-sm officer-btn-inspect" onclick="openQualityInspectionModal('${f.id}')" title="AI Grain Quality & Defect Inspection">
                                 <i class="fa-solid fa-microscope"></i> ${t("aiQualityInspectionBtn") || "AI Inspect"}
                             </button>
                             <button type="button" class="officer-btn-sm officer-btn-call" onclick="officerCallFarmerToken('${f.token}', '${f.farmerName}')" title="Call token over loudspeaker">
-                                <i class="fa-solid fa-bullhorn"></i> ${t("callNextBtn") || "Call Next"}
+                                <i class="fa-solid fa-bullhorn"></i> ${t("callNextBtn") || "Call"}
                             </button>
                             <button type="button" class="officer-btn-sm officer-btn-complete" onclick="officerCompleteProcurement('${f.id}')" title="Mark as Completed & Release DBT">
                                 <i class="fa-solid fa-circle-check"></i> ${t("markCompleteBtn") || "Complete"}
@@ -9337,7 +10307,10 @@ function renderOfficerQueueTable() {
                             </button>
                         ` : `
                             <button type="button" class="officer-btn-sm officer-btn-receipt" onclick="openProcurementReceiptModal('${f.id}')" title="View Electronic J-Form Receipt">
-                                <i class="fa-solid fa-file-invoice"></i> ${t("jFormReceipt") || "J-Form Receipt"}
+                                <i class="fa-solid fa-file-invoice"></i> ${t("jFormReceipt") || "J-Form"}
+                            </button>
+                            <button type="button" class="officer-btn-sm officer-btn-receipt" onclick="openWeighbridgeReceiptModal('${f.id}')" title="View Digital Weighment Slip" style="background:#0284c7; color:#fff;">
+                                <i class="fa-solid fa-scale-balanced"></i> Weigh Slip
                             </button>
                         `}
                     </div>
@@ -10550,6 +11523,78 @@ function initKisanSyncListeners() {
                 entity: { tokenId: payload.token, amount: payload.amount },
                 broadcast: false
             });
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.WEIGHBRIDGE_STARTED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.token === "07" && user && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken && currentBooking) {
+            currentBooking.stageCode = "gross_weighing";
+            currentBooking.stage = "Gross Weighbridge";
+            currentBooking.weighbridgeStatus = "IN_PROGRESS";
+            saveCurrentBooking();
+            if (user && user.role !== "officer") {
+                updateDashboardAfterBooking();
+                showToast(`⚖️ Live Sync: Weighbridge intake started for Token #${payload.token}. Vehicle on scale.`, "info");
+            }
+        }
+
+        if (user && (user.role === "officer" || user.role === "admin")) {
+            renderOfficerQueueTable();
+            updateOfficerStats();
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.WEIGHBRIDGE_COMPLETED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.token === "07" && user && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken && currentBooking) {
+            currentBooking.grossWeight = payload.grossWeight;
+            currentBooking.tareWeight = payload.tareWeight;
+            currentBooking.netWeight = payload.netWeight;
+            currentBooking.quantity = payload.netWeight;
+            currentBooking.amount = payload.amount;
+            currentBooking.stageCode = "quality_lab";
+            currentBooking.stage = "Quality Inspection Lab";
+            currentBooking.weighbridgeStatus = "COMPLETED";
+            currentBooking.weighbridgeReceiptId = payload.receiptId;
+            saveCurrentBooking();
+            if (user && user.role !== "officer") {
+                updateDashboardAfterBooking();
+                showToast(`⚖️ Live Sync: Weighment complete! Net Weight: ${payload.netWeight} Q (${payload.netWeightKg} kg). Moving to AI Quality Lab.`, "success");
+            }
+        }
+
+        if (user && (user.role === "officer" || user.role === "admin")) {
+            renderOfficerQueueTable();
+            updateOfficerStats();
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.QUALITY_WORKFLOW_READY, (payload) => {
+        const user = getCurrentUser();
+        if (user && (user.role === "officer" || user.role === "admin")) {
+            showToast(`🔬 Live Sync: Token #${payload.token} (${payload.farmerName}) weighment verified (${payload.netWeight} Q). AI Quality Lab ready.`, "info");
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.PROCUREMENT_READY, (payload) => {
+        const user = getCurrentUser();
+        if (user && (user.role === "officer" || user.role === "admin")) {
+            showToast(`✅ Live Sync: Token #${payload.token} passed quality (${payload.grade}). Ready for tare weighing & DBT release.`, "success");
         }
     });
 

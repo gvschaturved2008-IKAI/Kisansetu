@@ -173,6 +173,11 @@
                         <span data-language-key="scanFarmerQR">Scan Farmer QR</span>
                     </a>
 
+                    <a href="#" class="nav-item" data-action="officer-weighbridge" onclick="openWeighbridgeModal(); return false;">
+                        <i class="fa-solid fa-scale-unbalanced-flip"></i>
+                        <span data-language-key="weighbridgeConsole">Weighbridge Console</span>
+                    </a>
+
                     <a href="#" class="nav-item" data-action="officer-ai-inspect" onclick="openQualityInspectionModal(); return false;">
                         <i class="fa-solid fa-microscope"></i>
                         <span data-language-key="aiQualityInspection">AI Quality Inspection</span>
@@ -805,6 +810,9 @@
                         <div class="operator-buttons">
                             <button type="button" class="op-btn op-btn-scan" onclick="openOfficerQRScannerModal()" style="background:#174d32; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-qrcode"></i> <span data-language-key="scanFarmerQRBtn">Scan Farmer QR</span>
+                            </button>
+                            <button type="button" class="op-btn op-btn-weighbridge" onclick="openWeighbridgeModal()" style="background:#0284c7; color:#fff; font-weight:700;">
+                                <i class="fa-solid fa-scale-unbalanced-flip"></i> <span data-language-key="weighbridgeConsole">Weighbridge In</span>
                             </button>
                             <button type="button" class="op-btn op-btn-yard-map" onclick="scrollToOfficerSection('officer-yard-map-section')" style="background:#0284c7; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-map-location-dot"></i> <span data-language-key="mandiYardMapBtn">Live Yard Map</span>
