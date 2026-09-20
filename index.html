@@ -143,6 +143,11 @@
                         <span data-language-key="navFarmerRecords">Farmer Records</span>
                     </a>
 
+                    <a href="#" class="nav-item" data-action="officer-analytics" onclick="scrollToOfficerSection('officer-analytics-section'); return false;">
+                        <i class="fa-solid fa-chart-column" style="color:#0f766e;"></i>
+                        <span data-language-key="navLiveAnalytics">Live Analytics</span>
+                    </a>
+
                     <a href="#" class="nav-item" data-action="officer-reports" onclick="openMandiReportsModal(); return false;">
                         <i class="fa-solid fa-chart-pie"></i>
                         <span data-language-key="navReports">Reports</span>
@@ -789,6 +794,9 @@
                             <button type="button" class="op-btn op-btn-inspect-top" onclick="openQualityInspectionModal()" style="background:#0f766e; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-microscope"></i> <span data-language-key="aiQualityInspectionBtn">AI Quality Inspection</span>
                             </button>
+                            <button type="button" class="op-btn op-btn-analytics" onclick="scrollToOfficerSection('officer-analytics-section')" style="background:#0f766e; color:#fff; font-weight:700;">
+                                <i class="fa-solid fa-chart-column"></i> <span data-language-key="mandiAnalyticsBtn">Live Analytics</span>
+                            </button>
                             <button type="button" class="op-btn op-btn-congestion" onclick="scrollToOfficerSection('officer-congestion-section')" style="background:#0369a1; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-chart-simple"></i> <span data-language-key="mandiCongestionBtn">Congestion Forecast</span>
                             </button>
@@ -826,6 +834,51 @@
 
                         <div class="congestion-body" id="officer-congestion-target">
                             <!-- Populated dynamically by script.js -->
+                        </div>
+                    </div>
+
+                    <!-- Live Mandi Analytics and Procurement Operations Dashboard Section (Task 07) -->
+                    <div class="dashboard-card officer-analytics-card" id="officer-analytics-section">
+                        <div class="card-header">
+                            <div>
+                                <h3 data-language-key="analyticsDashboardTitle">Live Mandi Analytics & Procurement Operations</h3>
+                                <p data-language-key="analyticsDashboardDesc">Real-time operational KPI stream, procurement stage throughput, quality grade distribution, and DBT financial reconciliation.</p>
+                            </div>
+                            <div class="analytics-header-controls">
+                                <span class="live-pulse-badge">
+                                    <span class="pulse-dot"></span> <span data-language-key="liveStreamingBadge">LIVE STREAMING (KISANSYNC)</span>
+                                </span>
+                                <button type="button" class="scanner-demo-chip" style="margin:0; padding:4px 10px; font-size:11px;" onclick="KisanAnalytics.renderDashboard()">
+                                    <i class="fa-solid fa-arrows-rotate"></i> <span data-language-key="refreshAnalyticsBtn">Refresh</span>
+                                </button>
+                                <button type="button" class="scanner-demo-chip" style="margin:0; padding:4px 10px; font-size:11px; background:#f8fafc; color:#334155; border:1px solid #cbd5e1;" onclick="openMandiReportsModal()">
+                                    <i class="fa-solid fa-print"></i> <span data-language-key="auditReportBtn">Audit Report</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Filter Tab Bar -->
+                        <div class="analytics-filter-bar">
+                            <button type="button" class="analytics-filter-btn active" data-filter="all" onclick="KisanAnalytics.filterView('all')">
+                                <i class="fa-solid fa-layer-group"></i> <span data-language-key="filterAllOps">All Operations</span>
+                            </button>
+                            <button type="button" class="analytics-filter-btn" data-filter="queue" onclick="KisanAnalytics.filterView('queue')">
+                                <i class="fa-solid fa-truck-ramp-box"></i> <span data-language-key="filterYardQueue">Yard & Queue</span>
+                            </button>
+                            <button type="button" class="analytics-filter-btn" data-filter="quality" onclick="KisanAnalytics.filterView('quality')">
+                                <i class="fa-solid fa-microscope"></i> <span data-language-key="filterQualityLabs">Quality & Labs</span>
+                            </button>
+                            <button type="button" class="analytics-filter-btn" data-filter="payments" onclick="KisanAnalytics.filterView('payments')">
+                                <i class="fa-solid fa-indian-rupee-sign"></i> <span data-language-key="filterDBTPayments">DBT Payments</span>
+                            </button>
+                            <button type="button" class="analytics-filter-btn" data-filter="centres" onclick="KisanAnalytics.filterView('centres')">
+                                <i class="fa-solid fa-building-wheat"></i> <span data-language-key="filterCentreComp">Centres Comparison</span>
+                            </button>
+                        </div>
+
+                        <!-- Target Container Populated Dynamically by KisanAnalytics -->
+                        <div class="analytics-body-container" id="officer-analytics-target">
+                            <!-- Rendered dynamically by KisanAnalytics.renderDashboard() -->
                         </div>
                     </div>
 
