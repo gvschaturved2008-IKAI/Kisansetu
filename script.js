@@ -2465,6 +2465,752 @@ function openFarmerQualityModal(bookingId) {
 }
 
 /* =========================================================
+   TASK 05: KISAN VANI — MULTILINGUAL AI FARMER ASSISTANT
+   Voice & Text Digital Companion for Kisan Setu Procurement
+   Supports English, Telugu (తెలుగు), and Hindi (हिंदी)
+========================================================= */
+
+const KisanVani = (function() {
+    const STORAGE_KEY = "kisanVaniChatHistory";
+    let currentLanguage = "en"; // "en", "te", "hi"
+    let isRecording = false;
+    let recognitionInstance = null;
+
+    const SUGGESTIONS = {
+        en: [
+            "What is my queue position?",
+            "When is my procurement slot?",
+            "Show my QR pass",
+            "What is my quality inspection status?",
+            "Has my payment been processed?",
+            "Show my latest notifications",
+            "Where is my procurement centre?",
+            "How do I contact support?"
+        ],
+        te: [
+            "నా క్యూ పొజిషన్ ఎంత?",
+            "నా స్లాట్ సమయం ఎప్పుడు?",
+            "నా QR పాస్ చూపించు",
+            "నా క్వాలిటీ రిపోర్ట్ ఎలా ఉంది?",
+            "నా పేమెంట్ పూర్తయిందా?",
+            "నోటిఫికేషన్లు చూపించు",
+            "సేకరణ కేంద్రం ఎక్కడ?",
+            "సహాయం ఎలా పొందాలి?"
+        ],
+        hi: [
+            "मेरी कतार में स्थिति क्या है?",
+            "मेरा खरीद स्लॉट कब है?",
+            "मेरा QR पास दिखाएं",
+            "गुणवत्ता जांच की स्थिति क्या है?",
+            "क्या मेरा भुगतान हो गया?",
+            "मेरी नई सूचनाएं दिखाएं",
+            "खरीद केंद्र कहां है?",
+            "सहायता हेतु संपर्क करें"
+        ]
+    };
+
+    function buildFarmerContext() {
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : { role: "farmer", name: "Ramesh Kumar", farmerId: "KS102458" };
+        const b = (typeof currentBooking !== "undefined" && currentBooking) ? currentBooking : {
+            id: "KS748291",
+            token: "07",
+            farmerName: "Ramesh Kumar",
+            farmerId: "KS102458",
+            crop: "Paddy / Rice",
+            quantity: 21.5,
+            date: "Tomorrow",
+            time: "10:30 AM",
+            centre: "AP State Procurement Centre, Guntur Yard",
+            stage: "Gross Weighbridge",
+            stageCode: "gross_weighing",
+            status: "Verified",
+            moisture: "13.5% (Grade A)",
+            amount: "₹49,450"
+        };
+
+        let queuePosition = 4;
+        let farmersAhead = 3;
+        let estimatedWait = "18 mins";
+
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            const idx = yardQueueData.findIndex(f => f.id === b.id || f.token === b.token);
+            if (idx !== -1) {
+                queuePosition = idx + 1;
+                farmersAhead = idx;
+                estimatedWait = `${Math.max(5, idx * 6)} mins`;
+            }
+        }
+
+        let qualityRecord = null;
+        if (typeof KisanGrainAI !== "undefined" && typeof KisanGrainAI.getRecordForBooking === "function") {
+            qualityRecord = KisanGrainAI.getRecordForBooking(b.id) || KisanGrainAI.getRecordForBooking(b.token);
+        }
+
+        let unreadCount = 0;
+        let latestNotification = null;
+        if (typeof KisanNotifications !== "undefined") {
+            const notifs = typeof KisanNotifications.getAll === "function" ? KisanNotifications.getAll() : (typeof KisanNotifications.getNotifications === "function" ? KisanNotifications.getNotifications("all") : []);
+            if (typeof KisanNotifications.getUnreadCount === "function") {
+                unreadCount = KisanNotifications.getUnreadCount();
+            } else if (Array.isArray(notifs)) {
+                unreadCount = notifs.filter(n => !n.read).length;
+            }
+            if (notifs && notifs.length > 0) {
+                latestNotification = notifs[0];
+            }
+        }
+
+        return {
+            farmerName: b.farmerName || (user ? user.name : "Ramesh Kumar"),
+            farmerId: b.farmerId || (user ? user.farmerId : "KS102458"),
+            bookingId: b.id || "KS748291",
+            token: b.token || "07",
+            crop: b.crop || "Paddy / Rice",
+            quantity: b.quantity ? `${b.quantity} Quintals` : "21.5 Quintals",
+            slotDate: b.date || "Tomorrow",
+            slotTime: b.time || "10:30 AM",
+            centre: b.centre || "AP State Procurement Centre, Guntur Yard (Yard 1)",
+            stage: b.stage || "Gross Weighbridge",
+            stageCode: b.stageCode || "gross_weighing",
+            status: b.status || "Verified",
+            amount: b.amount || "₹49,450",
+            queuePosition,
+            farmersAhead,
+            estimatedWait,
+            qualityRecord,
+            unreadCount,
+            latestNotification
+        };
+    }
+
+    function detectIntent(rawQuery, lang) {
+        const q = (rawQuery || "").toLowerCase().trim();
+
+        // 1. Queue Status & Token turn queries
+        if (
+            q.includes("queue") || q.includes("position") || q.includes("turn") || q.includes("ahead") || q.includes("wait") || q.includes("token") ||
+            q.includes("క్యూ") || q.includes("స్థానం") || q.includes("నంబర్") || q.includes("వంతు") || q.includes("ఎంతమంది") || q.includes("వేచి") ||
+            q.includes("कतार") || q.includes("स्थान") || q.includes("नंबर") || q.includes("बारी") || q.includes("कितना समय") || q.includes("इंतजार")
+        ) {
+            return "QUEUE_STATUS";
+        }
+
+        // 2. QR Code / Gate Pass queries
+        if (
+            q.includes("qr") || q.includes("gate pass") || q.includes("pass") || q.includes("entry pass") || q.includes("scan") ||
+            q.includes("క్యూఆర్") || q.includes("పాస్") || q.includes("గేట్ పాస్") ||
+            q.includes("क्यूआर") || q.includes("पास") || q.includes("गेट पास")
+        ) {
+            return "QR_HELP";
+        }
+
+        // 3. Quality, Grain Defect, Moisture & Lab queries
+        if (
+            q.includes("quality") || q.includes("inspect") || q.includes("moisture") || q.includes("defect") || q.includes("grade") || q.includes("grain") ||
+            q.includes("నాణ్యత") || q.includes("తనిఖీ") || q.includes("తేమ") || q.includes("గ్రేడ్") || q.includes("ధాన్యం") || q.includes("లోపం") ||
+            q.includes("गुणवत्ता") || q.includes("जांच") || q.includes("नमी") || q.includes("ग्रेड") || q.includes("अनाज") || q.includes("दोष")
+        ) {
+            return "QUALITY_STATUS";
+        }
+
+        // 4. Payment / DBT / Bank queries
+        if (
+            q.includes("payment") || q.includes("dbt") || q.includes("money") || q.includes("rupee") || q.includes("payout") || q.includes("paid") || q.includes("bank") ||
+            q.includes("పేమెంట్") || q.includes("డబ్బు") || q.includes("చెల్లింపు") || q.includes("బ్యాంక్") || q.includes("డిబిటి") ||
+            q.includes("भुगतान") || q.includes("पैसे") || q.includes("डीबीटी") || q.includes("बैंक") || q.includes("खाता")
+        ) {
+            return "PAYMENT_STATUS";
+        }
+
+        // 5. Support / Help / Grievance / Officer queries
+        if (
+            q.includes("help") || q.includes("support") || q.includes("contact") || q.includes("complaint") || q.includes("grievance") || q.includes("officer") || q.includes("call") || q.includes("helpline") ||
+            q.includes("సహాయం") || q.includes("మద్దతు") || q.includes("ఫిర్యాదు") || q.includes("సంప్రదించండి") ||
+            q.includes("सहायता") || q.includes("मदद") || q.includes("शिकायत") || q.includes("संपर्क") || q.includes("अधिकारी")
+        ) {
+            return "GRIEVANCE_HELP";
+        }
+
+        // 6. Centre / Mandi / Location queries
+        if (
+            q.includes("centre") || q.includes("center") || q.includes("mandi") || q.includes("yard") || q.includes("where") || q.includes("location") || q.includes("address") ||
+            q.includes("కేంద్రం") || q.includes("మండీ") || q.includes("ఎక్కడ") || q.includes("చిరునామా") ||
+            q.includes("केंद्र") || q.includes("मंडी") || q.includes("कहाँ") || q.includes("कहा") || q.includes("पता")
+        ) {
+            return "CENTRE_INFORMATION";
+        }
+
+        // 7. Notification / Alerts queries
+        if (
+            q.includes("notification") || q.includes("alert") || q.includes("message") || q.includes("update") ||
+            q.includes("నోటిఫికేషన్") || q.includes("అలర్ట్") || q.includes("సందేశం") ||
+            q.includes("सूचना") || q.includes("अलर्ट") || q.includes("मैसेज")
+        ) {
+            return "NOTIFICATIONS";
+        }
+
+        // 8. Slot timing / Date queries
+        if (
+            q.includes("when") || q.includes("date") || q.includes("time") || q.includes("timing") || q.includes("slot time") ||
+            q.includes("ఎప్పుడు") || q.includes("తేదీ") || q.includes("సమయం") ||
+            q.includes("कब") || q.includes("तारीख") || q.includes("समय") || q.includes("दिन")
+        ) {
+            return "SLOT_INFORMATION";
+        }
+
+        // 9. Booking specifics queries
+        if (
+            q.includes("booking") || q.includes("booking id") || q.includes("crop") || q.includes("quantity") || q.includes("appointment") ||
+            q.includes("బుకింగ్") || q.includes("పంట") || q.includes("పరిమాణం") ||
+            q.includes("बुकिंग") || q.includes("फसल") || q.includes("मात्रा")
+        ) {
+            return "BOOKING_STATUS";
+        }
+
+        // 10. General Procurement Status & Stage queries
+        if (
+            q.includes("status") || q.includes("procurement") || q.includes("progress") || q.includes("stage") || q.includes("completed") ||
+            q.includes("ప్రగతి") || q.includes("దశ") || q.includes("స్థితి") || q.includes("సేకరణ") ||
+            q.includes("स्थिति") || q.includes("प्रगति") || q.includes("चरण") || q.includes("खरीद")
+        ) {
+            return "PROCUREMENT_STATUS";
+        }
+
+        // 11. Greeting & Introductory queries
+        if (
+            q.includes("hello") || q.includes("hi") || q.includes("namaste") || q.includes("vanakkam") || q.includes("hey") || q.includes("kisan vani") ||
+            q.includes("హలో") || q.includes("నమస్కారం") ||
+            q.includes("नमस्ते") || q.includes("प्रणाम") || q.includes("हैलो")
+        ) {
+            return "GENERAL_HELP";
+        }
+
+        return "UNKNOWN";
+    }
+
+    function generateResponse(intent, query, lang, ctx) {
+        let text = "";
+        let actions = [];
+
+        switch (intent) {
+            case "QUEUE_STATUS":
+                if (lang === "te") {
+                    text = `మీరు ప్రస్తుతం క్యూలో #${ctx.queuePosition} స్థానంలో ఉన్నారు (టోకెన్ #${ctx.token}). మీ కంటే ముందు ${ctx.farmersAhead} మంది రైతులు ఉన్నారు. అంచనా వేసిన సమయం సుమారు ${ctx.estimatedWait}.`;
+                } else if (lang === "hi") {
+                    text = `आप वर्तमान में कतार में #${ctx.queuePosition} स्थान पर हैं (टोकन #${ctx.token})। आपके आगे ${ctx.farmersAhead} किसान हैं। अनुमानित समय लगभग ${ctx.estimatedWait} है।`;
+                } else {
+                    text = `You are currently #${ctx.queuePosition} in the queue (Token #${ctx.token}). There are ${ctx.farmersAhead} farmer(s) ahead of you. Estimated wait time is approx ${ctx.estimatedWait}.`;
+                }
+                actions.push({ label: lang === "te" ? "క్యూ ట్రాక్ చేయండి" : (lang === "hi" ? "कतार ट्रैक करें" : "Track Live Turn"), onclick: "openTracker()" });
+                break;
+
+            case "QR_HELP":
+                if (lang === "te") {
+                    text = `ఇదిగోండి మీ డిజిటల్ గేట్ పాస్ QR కోడ్ (టోకెన్ #${ctx.token}, బుకింగ్ ID: ${ctx.bookingId}). గేట్ వద్ద అధికారికి చూపించి ప్రవేశించండి.`;
+                } else if (lang === "hi") {
+                    text = `यह रहा आपका डिजिटल गेट पास QR कोड (टोकन #${ctx.token}, बुकिंग ID: ${ctx.bookingId})। मंडी गेट पर इसे दिखाकर प्रवेश करें।`;
+                } else {
+                    text = `Here is your active Digital Gate Pass QR code (Token #${ctx.token}, Booking ID: ${ctx.bookingId}). Present this at Gate 1 for optical scan.`;
+                }
+                actions.push({ label: lang === "te" ? "నా QR పాస్ చూపించు" : (lang === "hi" ? "मेरा QR पास देखें" : "Show My QR Pass"), onclick: "openFarmerQRModal()" });
+                break;
+
+            case "QUALITY_STATUS":
+                if (ctx.qualityRecord) {
+                    const q = ctx.qualityRecord;
+                    if (lang === "te") {
+                        text = `మీ ధాన్యం నాణ్యత తనిఖీ పూర్తయింది. గ్రేడ్: ${q.grade} (స్కోరు: ${q.overallScore}/100, తేమ: ${q.moisture}). అధికారి నిర్ణయం: ${q.officerDecision === 'APPROVE' ? 'ఆమోదించబడింది' : q.officerDecision}.`;
+                    } else if (lang === "hi") {
+                        text = `आपके अनाज की गुणवत्ता जांच पूर्ण हो चुकी है। ग्रेड: ${q.grade} (स्कोर: ${q.overallScore}/100, नमी: ${q.moisture})। निर्णय: ${q.officerDecision === 'APPROVE' ? 'स्वीकृत' : q.officerDecision}।`;
+                    } else {
+                        text = `Your grain quality inspection is complete. Grade: ${q.grade} (Score: ${q.overallScore}/100, Moisture: ${q.moisture}). Officer Decision: ${q.officerDecision === 'APPROVE' ? 'Approved for MSP Procurement' : q.officerDecision}.`;
+                    }
+                } else {
+                    if (lang === "te") {
+                        text = `మీ ధాన్యం లాట్ (టోకెన్ #${ctx.token}) ప్రస్తుతం తూకం మరియు AI నాణ్యత తనిఖీ దశలో ఉంది. నాణ్యత నివేదిక త్వరలో నవీకరించబడుతుంది.`;
+                    } else if (lang === "hi") {
+                        text = `आपका अनाज लॉट (टोकन #${ctx.token}) वर्तमान में वजन और एआई गुणवत्ता जांच प्रक्रिया में है।`;
+                    } else {
+                        text = `Your grain lot (Token #${ctx.token}) is currently at the ${ctx.stage} stage. AI quality evaluation and moisture testing are in progress.`;
+                    }
+                }
+                actions.push({ label: lang === "te" ? "క్వాలిటీ రిపోర్ట్ చూడండి" : (lang === "hi" ? "गुणवत्ता रिपोर्ट देखें" : "View Quality Report"), onclick: "openFarmerQualityModal()" });
+                break;
+
+            case "PAYMENT_STATUS":
+                if (ctx.stageCode === "completed") {
+                    if (lang === "te") {
+                        text = `మీ ${ctx.crop} కొనుగోలు విజయవంతంగా పూర్తయింది! ₹${ctx.amount} DBT చెల్లింపు మీ ఆధార్-లింక్డ్ బ్యాంక్ ఖాతాకు జారీ చేయబడింది.`;
+                    } else if (lang === "hi") {
+                        text = `आपकी ${ctx.crop} खरीद पूर्ण हो गई है! ₹${ctx.amount} का डीबीटी भुगतान आपके आधार-लिंक्ड बैंक खाते में भेज दिया गया है।`;
+                    } else {
+                        text = `Procurement complete! ${ctx.amount} DBT payment has been disbursed to your Aadhaar-linked bank account. Electronic J-Form generated.`;
+                    }
+                    actions.push({ label: lang === "te" ? "J-Form రసీదు చూడండి" : (lang === "hi" ? "J-Form रसीद देखें" : "View J-Form Receipt"), onclick: "openProcurementReceiptModal()" });
+                } else {
+                    if (lang === "te") {
+                        text = `మీ కొనుగోలు ప్రస్తుతం '${ctx.stage}' దశలో ఉంది. వేబ్రిడ్జి తుది తూకం మరియు అధికారి ఆమోదం పూర్తయిన తర్వాత చెల్లింపు విడుదల చేయబడుతుంది.`;
+                    } else if (lang === "hi") {
+                        text = `आपकी खरीद प्रक्रिया अभी '${ctx.stage}' चरण में है। खाली वाहन के अंतिम तौल के बाद भुगतान सीधे बैंक खाते में भेजा जाएगा।`;
+                    } else {
+                        text = `Your procurement is currently in '${ctx.stage}'. Once final tare weighing is verified, ${ctx.amount} will be disbursed directly via DBT.`;
+                    }
+                    actions.push({ label: lang === "te" ? "చెల్లింపు స్థితి చూడండి" : (lang === "hi" ? "भुगतान स्थिति" : "View Payment Status"), onclick: "openPayment()" });
+                }
+                break;
+
+            case "SLOT_INFORMATION":
+            case "BOOKING_STATUS":
+                if (lang === "te") {
+                    text = `మీ బుకింగ్ ID: ${ctx.bookingId} (టోకెన్ #${ctx.token}). పంట: ${ctx.crop} (${ctx.quantity}). షెడ్యూల్ చేసిన తేదీ: ${ctx.slotDate}, సమయం: ${ctx.slotTime}. కేంద్రం: ${ctx.centre}.`;
+                } else if (lang === "hi") {
+                    text = `आपकी बुकिंग ID: ${ctx.bookingId} (टोकन #${ctx.token}) है। फसल: ${ctx.crop} (${ctx.quantity})। तारीख: ${ctx.slotDate}, समय: ${ctx.slotTime}। केंद्र: ${ctx.centre}।`;
+                } else {
+                    text = `Your active booking is ID: ${ctx.bookingId} (Token #${ctx.token}) for ${ctx.crop} (${ctx.quantity}). Scheduled for ${ctx.slotDate} at ${ctx.slotTime} at ${ctx.centre}.`;
+                }
+                actions.push({ label: lang === "te" ? "కొత్త స్లాట్ బుక్ చేయండి" : (lang === "hi" ? "नया स्लॉट बुक करें" : "Book New Slot"), onclick: "openBooking()" });
+                break;
+
+            case "PROCUREMENT_STATUS":
+                if (lang === "te") {
+                    text = `మీ కొనుగోలు స్థితి: '${ctx.status}' • ప్రస్తుత దశ: ${ctx.stage} (టోకెన్ #${ctx.token}, ${ctx.crop}).`;
+                } else if (lang === "hi") {
+                    text = `आपकी खरीद की स्थिति: '${ctx.status}' • वर्तमान चरण: ${ctx.stage} (टोकन #${ctx.token}, ${ctx.crop})।`;
+                } else {
+                    text = `Current Procurement Status: '${ctx.status}' • Active Stage: ${ctx.stage} (Token #${ctx.token}, ${ctx.crop} ${ctx.quantity}).`;
+                }
+                actions.push({ label: lang === "te" ? "ప్రగతిని ట్రాక్ చేయండి" : (lang === "hi" ? "प्रगति ट्रैक करें" : "Track Progress"), onclick: "openTracker()" });
+                break;
+
+            case "NOTIFICATIONS":
+                if (ctx.unreadCount > 0) {
+                    if (lang === "te") {
+                        text = `మీకు ${ctx.unreadCount} కొత్త నోటిఫికేషన్లు ఉన్నాయి. తాజాది: "${ctx.latestNotification ? ctx.latestNotification.message : 'సేకరణ నవీకరణ'}".`;
+                    } else if (lang === "hi") {
+                        text = `आपके पास ${ctx.unreadCount} नई सूचनाएं हैं। नवीनतम: "${ctx.latestNotification ? ctx.latestNotification.message : 'खरीद अपडेट'}"।`;
+                    } else {
+                        text = `You have ${ctx.unreadCount} unread notification(s). Latest: "${ctx.latestNotification ? ctx.latestNotification.message : 'Procurement stage updated'}".`;
+                    }
+                } else {
+                    if (lang === "te") {
+                        text = `మీకు ప్రస్తుతం చదవని కొత్త నోటిఫికేషన్లు ఏవీ లేవు. మీ ఖాతా పూర్తిగా అప్‌డేట్ అయింది.`;
+                    } else if (lang === "hi") {
+                        text = `आपके पास कोई नई अपठित सूचना नहीं है। आपका खाता अपडेट है।`;
+                    } else {
+                        text = `You have no unread notifications. Your account and queue status are completely up to date.`;
+                    }
+                }
+                actions.push({ label: lang === "te" ? "నోటిఫికేషన్లు తెరవండి" : (lang === "hi" ? "सूचनाएं खोलें" : "Open Notifications"), onclick: "openNotifications()" });
+                break;
+
+            case "CENTRE_INFORMATION":
+                if (lang === "te") {
+                    text = `మీ సేకరణ కేంద్రం: ${ctx.centre}. తెరిచే వేళలు: ఉదయం 8:00 నుండి సాయంత్రం 6:00 వరకు. వేబ్రిడ్జి లైవ్ ఆన్‌లైన్‌లో ఉంది.`;
+                } else if (lang === "hi") {
+                    text = `आपका खरीद केंद्र: ${ctx.centre} है। समय: सुबह 8:00 से शाम 6:00 बजे तक। धर्मकांटा (वेब्रिज) ऑनलाइन चालू है।`;
+                } else {
+                    text = `Your assigned centre is: ${ctx.centre}. Operating hours: 08:00 AM – 06:00 PM (Monday to Saturday). Weighbridge is active.`;
+                }
+                actions.push({ label: lang === "te" ? "కేంద్ర వివరాలు" : (lang === "hi" ? "केंद्र विवरण" : "Centre Details"), onclick: "openCentre()" });
+                break;
+
+            case "GRIEVANCE_HELP":
+                if (lang === "te") {
+                    text = `కిసాన్ సేతు హెల్ప్‌డెస్క్ 24/7 అందుబాటులో ఉంది. టోల్-ఫ్రీ నంబర్: 1800-180-1551. మండీ అధికారి: Officer S. Sharma (Yard Incharge).`;
+                } else if (lang === "hi") {
+                    text = `किसान सेतु सहायता केंद्र 24/7 उपलब्ध है। टोल-फ्री नंबर: 1800-180-1551। मंडी प्रभारी अधिकारी: Officer S. Sharma.`;
+                } else {
+                    text = `Kisan Setu Helpdesk & Grievance Support is active. Toll-free helpline: 1800-180-1551. Officer Incharge: Officer S. Sharma.`;
+                }
+                actions.push({ label: lang === "te" ? "సహాయం పొందండి" : (lang === "hi" ? "सहायता लें" : "Get Support"), onclick: "openHelp()" });
+                break;
+
+            case "GENERAL_HELP":
+                if (lang === "te") {
+                    text = `నమస్కారం! నేను కిసాన్ వాణి AI సహాయకుడిని. మీ క్యూ నంబర్, బుకింగ్ సమయం, నాణ్యత తనిఖీ, గేట్ పాస్ QR, మరియు చెల్లింపుల గురించి నన్ను అడగవచ్చు.`;
+                } else if (lang === "hi") {
+                    text = `नमस्ते! मैं किसान वाणी एआई सहायक हूँ। आप मुझसे अपनी कतार स्थिति, स्लॉट समय, अनाज गुणवत्ता रिपोर्ट, गेट पास QR और भुगतान के बारे में पूछ सकते हैं।`;
+                } else {
+                    text = `Namaste! I am Kisan Vani, your digital assistant for Kisan Setu. I can help you with your queue position, slot timings, AI grain inspection report, Gate Pass QR, and DBT payment status.`;
+                }
+                break;
+
+            default:
+                if (lang === "te") {
+                    text = `క్షమించండి, మీ ప్రశ్నకు నాకు తగిన సమాచారం లేదు. మీరు మీ క్యూ స్థానం, బుకింగ్ సమయం, క్వాలిటీ రిపోర్ట్, లేదా పేమెంట్ స్థితి గురించి అడగవచ్చు.`;
+                } else if (lang === "hi") {
+                    text = `क्षमा करें, मेरे पास इसके लिए पूरी जानकारी नहीं है। आप अपनी कतार स्थिति, स्लॉट समय, गुणवत्ता रिपोर्ट, या भुगतान स्थिति के बारे में पूछ सकते हैं।`;
+                } else {
+                    text = `I don't have enough specific information to answer that. I can help you with your queue number, slot timings, grain quality inspection, Gate Pass QR, and DBT payments.`;
+                }
+                actions.push({ label: lang === "te" ? "క్యూ స్థితి" : (lang === "hi" ? "कतार स्थिति" : "Queue Status"), onclick: "KisanVani.sendMessage('What is my queue position?')" });
+                actions.push({ label: lang === "te" ? "నా QR పాస్" : (lang === "hi" ? "मेरा QR पास" : "Show My QR"), onclick: "KisanVani.sendMessage('Show my QR')" });
+                break;
+        }
+
+        return { text, actions };
+    }
+
+    function getStoredHistory() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveHistory(messages) {
+        try {
+            const trimmed = messages.slice(-20);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+        } catch (e) {}
+    }
+
+    function clearHistory() {
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+            renderChatUi();
+            showToast("Conversation cleared.");
+        } catch (e) {}
+    }
+
+    function getDefaultWelcomeMessage() {
+        if (currentLanguage === "te") {
+            return {
+                sender: "bot",
+                text: "నమస్కారం! నేను కిసాన్ వాణి AI సహాయకుడిని. మీ సేకరణ క్యూ, బుకింగ్, గేట్ పాస్ QR, నాణ్యత తనిఖీ లేదా పేమెంట్ స్థితి గురించి నన్ను ఏదైనా అడగండి.",
+                timestamp: Date.now(),
+                actions: [
+                    { label: "క్యూ స్థితి?", onclick: "KisanVani.sendMessage('నా క్యూ పొజిషన్ ఎంత?')" },
+                    { label: "నా QR పాస్", onclick: "KisanVani.sendMessage('నా QR పాస్ చూపించు')" },
+                    { label: "నాణ్యత నివేదిక", onclick: "KisanVani.sendMessage('నా క్వాలిటీ రిపోర్ట్ ఎలా ఉంది?')" }
+                ]
+            };
+        } else if (currentLanguage === "hi") {
+            return {
+                sender: "bot",
+                text: "नमस्ते! मैं किसान वाणी एआई सहायक हूँ। आप मुझसे अपनी खरीद कतार, स्लॉट समय, डिजिटल QR पास, अनाज गुणवत्ता या भुगतान स्थिति के बारे में पूछ सकते हैं।",
+                timestamp: Date.now(),
+                actions: [
+                    { label: "कतार स्थिति?", onclick: "KisanVani.sendMessage('मेरी कतार में स्थिति क्या है?')" },
+                    { label: "मेरा QR पास", onclick: "KisanVani.sendMessage('मेरा QR पास दिखाएं')" },
+                    { label: "गुणवत्ता रिपोर्ट", onclick: "KisanVani.sendMessage('गुणवत्ता जांच की स्थिति क्या है?')" }
+                ]
+            };
+        }
+        return {
+            sender: "bot",
+            text: "Hello! I am Kisan Vani, your AI procurement assistant. Ask me anything about your live queue position, slot booking, Gate Pass QR, grain quality report, or DBT payment status.",
+            timestamp: Date.now(),
+            actions: [
+                { label: "Queue status?", onclick: "KisanVani.sendMessage('What is my queue position?')" },
+                { label: "Show my QR", onclick: "KisanVani.sendMessage('Show my QR pass')" },
+                { label: "Quality report", onclick: "KisanVani.sendMessage('What is my quality inspection status?')" },
+                { label: "Payment status", onclick: "KisanVani.sendMessage('Has my payment been processed?')" }
+            ]
+        };
+    }
+
+    function openAssistantModal() {
+        const modalContent = `
+            <div class="vani-container">
+                
+                <!-- Header Toolbar -->
+                <div class="vani-header-bar">
+                    <div class="vani-status-badge">
+                        <span class="vani-status-dot"></span>
+                        <span>Live State Connected</span>
+                    </div>
+
+                    <div class="vani-controls">
+                        <select class="vani-lang-select" id="vani-lang-selector" onchange="KisanVani.setLanguage(this.value)">
+                            <option value="en" ${currentLanguage === 'en' ? 'selected' : ''}>English</option>
+                            <option value="te" ${currentLanguage === 'te' ? 'selected' : ''}>తెలుగు (Telugu)</option>
+                            <option value="hi" ${currentLanguage === 'hi' ? 'selected' : ''}>हिंदी (Hindi)</option>
+                        </select>
+
+                        <button type="button" class="vani-clear-btn" onclick="KisanVani.clearHistory()" title="Clear Chat History">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chat Messages Scroll Container -->
+                <div class="vani-chat-messages" id="vani-messages-target">
+                    <!-- Populated by renderChatUi() -->
+                </div>
+
+                <!-- Suggested Quick Chips Row -->
+                <div class="vani-suggestions-wrapper" id="vani-suggestions-target">
+                    <!-- Populated by renderChatUi() -->
+                </div>
+
+                <!-- Input Row -->
+                <div class="vani-input-bar">
+                    <input type="text" id="vani-user-input" class="vani-input" placeholder="${currentLanguage === 'te' ? 'మీ ప్రశ్న ఇక్కడ టైప్ చేయండి...' : (currentLanguage === 'hi' ? 'अपना प्रश्न यहाँ लिखें...' : 'Type your question or tap mic...')}" onkeypress="if(event.key==='Enter') KisanVani.submitInput();"/>
+                    
+                    <button type="button" class="vani-mic-btn" id="vani-mic-btn" onclick="KisanVani.startVoiceInput()" title="Speak your question">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+
+                    <button type="button" class="vani-send-btn" onclick="KisanVani.submitInput()" title="Send message">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+
+            </div>
+        `;
+
+        openModal("🌾 Kisan Vani • AI Farmer Assistant", modalContent);
+
+        setTimeout(() => {
+            renderChatUi();
+            const inputField = document.getElementById("vani-user-input");
+            if (inputField) inputField.focus();
+        }, 100);
+    }
+
+    function renderChatUi() {
+        const messagesTarget = document.getElementById("vani-messages-target");
+        const suggestionsTarget = document.getElementById("vani-suggestions-target");
+        if (!messagesTarget) return;
+
+        let history = getStoredHistory();
+        if (!history || history.length === 0) {
+            history = [getDefaultWelcomeMessage()];
+            saveHistory(history);
+        }
+
+        messagesTarget.innerHTML = history.map((msg, index) => renderSingleMessageHtml(msg, index)).join("");
+        messagesTarget.scrollTop = messagesTarget.scrollHeight;
+
+        if (suggestionsTarget) {
+            const chips = SUGGESTIONS[currentLanguage] || SUGGESTIONS.en;
+            suggestionsTarget.innerHTML = chips.map(chip => `
+                <button type="button" class="vani-chip" onclick="KisanVani.sendMessage('${chip.replace(/'/g, "\\'")}')">
+                    ${chip}
+                </button>
+            `).join("");
+        }
+    }
+
+    function renderSingleMessageHtml(msg, index) {
+        const isBot = msg.sender === "bot";
+        const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        return `
+            <div class="vani-msg-row ${isBot ? 'bot' : 'user'}">
+                <div class="vani-avatar ${isBot ? 'bot' : 'user'}">
+                    <i class="fa-solid ${isBot ? 'fa-seedling' : 'fa-user'}"></i>
+                </div>
+                <div class="vani-bubble">
+                    <div>${msg.text}</div>
+                    
+                    ${isBot && msg.actions && msg.actions.length > 0 ? `
+                        <div class="vani-actions-group">
+                            ${msg.actions.map(act => `
+                                <button type="button" class="vani-action-btn" onclick="${act.onclick}">
+                                    <i class="fa-solid fa-arrow-right"></i> ${act.label}
+                                </button>
+                            `).join("")}
+                        </div>
+                    ` : ''}
+
+                    <div class="vani-bubble-meta">
+                        <span>${timeStr}</span>
+                        ${isBot ? `
+                            <button type="button" class="vani-audio-btn" onclick="KisanVani.speakText('${msg.text.replace(/'/g, "\\'")}', '${currentLanguage}')" title="Listen to answer">
+                                <i class="fa-solid fa-volume-high"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function submitInput() {
+        const inputField = document.getElementById("vani-user-input");
+        if (!inputField || !inputField.value.trim()) return;
+        const text = inputField.value.trim();
+        inputField.value = "";
+        sendMessage(text);
+    }
+
+    function sendMessage(text) {
+        let history = getStoredHistory() || [getDefaultWelcomeMessage()];
+
+        const userMsg = {
+            sender: "user",
+            text,
+            timestamp: Date.now()
+        };
+        history.push(userMsg);
+        saveHistory(history);
+
+        const messagesTarget = document.getElementById("vani-messages-target");
+        if (messagesTarget) {
+            messagesTarget.innerHTML += renderSingleMessageHtml(userMsg, history.length - 1);
+            
+            const typingHtml = `
+                <div class="vani-msg-row bot" id="vani-typing-indicator">
+                    <div class="vani-avatar bot"><i class="fa-solid fa-seedling"></i></div>
+                    <div class="vani-bubble">
+                        <div class="vani-typing-dots">
+                            <span class="vani-dot"></span>
+                            <span class="vani-dot"></span>
+                            <span class="vani-dot"></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            messagesTarget.innerHTML += typingHtml;
+            messagesTarget.scrollTop = messagesTarget.scrollHeight;
+        }
+
+        setTimeout(() => {
+            const ctx = buildFarmerContext();
+            const intent = detectIntent(text, currentLanguage);
+            const res = generateResponse(intent, text, currentLanguage, ctx);
+
+            const botMsg = {
+                sender: "bot",
+                text: res.text,
+                actions: res.actions,
+                timestamp: Date.now()
+            };
+
+            history.push(botMsg);
+            saveHistory(history);
+
+            const typingInd = document.getElementById("vani-typing-indicator");
+            if (typingInd) typingInd.remove();
+
+            if (messagesTarget) {
+                messagesTarget.innerHTML += renderSingleMessageHtml(botMsg, history.length - 1);
+                messagesTarget.scrollTop = messagesTarget.scrollHeight;
+            }
+
+            speakText(res.text, currentLanguage);
+        }, 360);
+    }
+
+    function setLanguage(lang) {
+        if (["en", "te", "hi"].includes(lang)) {
+            currentLanguage = lang;
+            renderChatUi();
+            const inputField = document.getElementById("vani-user-input");
+            if (inputField) {
+                inputField.placeholder = (currentLanguage === 'te' ? 'మీ ప్రశ్న ఇక్కడ టైప్ చేయండి...' : (currentLanguage === 'hi' ? 'अपना प्रश्न यहाँ लिखें...' : 'Type your question or tap mic...'));
+            }
+            showToast(`Kisan Vani language set to ${lang === 'te' ? 'తెలుగు' : (lang === 'hi' ? 'हिंदी' : 'English')}.`);
+        }
+    }
+
+    function startVoiceInput() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            showToast("Voice input is not supported in this browser. Please type your question.", "warning");
+            return;
+        }
+
+        if (isRecording && recognitionInstance) {
+            recognitionInstance.stop();
+            return;
+        }
+
+        try {
+            recognitionInstance = new SpeechRecognition();
+            recognitionInstance.continuous = false;
+            recognitionInstance.interimResults = false;
+
+            if (currentLanguage === "te") recognitionInstance.lang = "te-IN";
+            else if (currentLanguage === "hi") recognitionInstance.lang = "hi-IN";
+            else recognitionInstance.lang = "en-IN";
+
+            const micBtn = document.getElementById("vani-mic-btn");
+            const inputField = document.getElementById("vani-user-input");
+
+            recognitionInstance.onstart = () => {
+                isRecording = true;
+                if (micBtn) micBtn.classList.add("recording");
+                if (inputField) inputField.placeholder = (currentLanguage === "te" ? "వింటున్నాను..." : (currentLanguage === "hi" ? "सुन रहा हूँ..." : "Listening... Speak now..."));
+            };
+
+            recognitionInstance.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                if (inputField) inputField.value = transcript;
+                sendMessage(transcript);
+            };
+
+            recognitionInstance.onerror = (event) => {
+                console.warn("Speech recognition error:", event.error);
+                if (event.error !== "no-speech") {
+                    showToast("Speech recognition error: " + event.error, "error");
+                }
+            };
+
+            recognitionInstance.onend = () => {
+                isRecording = false;
+                if (micBtn) micBtn.classList.remove("recording");
+                if (inputField) inputField.placeholder = (currentLanguage === "te" ? "మీ ప్రశ్న ఇక్కడ టైప్ చేయండి..." : (currentLanguage === "hi" ? "अपना प्रश्न यहाँ लिखें..." : "Type your question or tap mic..."));
+            };
+
+            recognitionInstance.start();
+        } catch (e) {
+            console.warn("Voice input start failed:", e);
+            showToast("Microphone access could not be initialized.", "warning");
+        }
+    }
+
+    function speakText(text, lang) {
+        if (!window.speechSynthesis) return;
+        try {
+            window.speechSynthesis.cancel();
+            const cleanText = text.replace(/[*_#`[\]()]/g, '');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+
+            let targetLangCode = "en-IN";
+            if (lang === "te") targetLangCode = "te-IN";
+            else if (lang === "hi") targetLangCode = "hi-IN";
+
+            utterance.lang = targetLangCode;
+            utterance.rate = 0.95;
+            utterance.pitch = 1.0;
+
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+                const matchVoice = voices.find(v => v.lang === targetLangCode || v.lang.startsWith(targetLangCode.split('-')[0]));
+                if (matchVoice) utterance.voice = matchVoice;
+            }
+
+            window.speechSynthesis.speak(utterance);
+        } catch (e) {
+            console.warn("Speech synthesis error:", e);
+        }
+    }
+
+    return {
+        buildFarmerContext,
+        detectIntent,
+        generateResponse,
+        openAssistantModal,
+        sendMessage,
+        submitInput,
+        setLanguage,
+        startVoiceInput,
+        speakText,
+        clearHistory
+    };
+})();
+
+// Global accessible wrapper for Task 05
+function openKisanVani() {
+    KisanVani.openAssistantModal();
+}
+
+/* =========================================================
    1. MULTI-LANGUAGE TRANSLATION DICTIONARIES
 ========================================================= */
 
@@ -2475,6 +3221,9 @@ const translations = {
         aiQualityInspectionTitle: "AI-Assisted Grain Quality Assessment",
         quickQualityReport: "AI Quality Assessment",
         quickQualityReportDesc: "View grain grade & defect report",
+        kisanVaniNav: "Kisan Vani AI",
+        quickKisanVani: "Ask Kisan Vani AI",
+        quickKisanVaniDesc: "Voice & text assistant for your procurement",
         aiAdvisoryNotice: "AI-assisted preliminary visual assessment (Advisory Only). Not an official statutory lab certification.",
         overallQuality: "Overall Quality Score",
         estimatedGrade: "Estimated Grade",
@@ -2745,6 +3494,9 @@ const translations = {
         aiQualityInspectionTitle: "एआई-सहायता प्राप्त अनाज गुणवत्ता मूल्यांकन",
         quickQualityReport: "एआई गुणवत्ता रिपोर्ट",
         quickQualityReportDesc: "अनाज ग्रेड और दोष रिपोर्ट देखें",
+        kisanVaniNav: "किसान वाणी AI",
+        quickKisanVani: "किसान वाणी AI से पूछें",
+        quickKisanVaniDesc: "खरीद प्रक्रिया हेतु वॉइस एवं चैट सहायक",
         aiAdvisoryNotice: "एआई-सहायता प्राप्त प्रारंभिक मूल्यांकन (केवल सलाहकारी)।",
         overallQuality: "समग्र गुणवत्ता स्कोर",
         estimatedGrade: "अनुमानित ग्रेड",
@@ -3008,6 +3760,9 @@ const translations = {
         aiQualityInspectionTitle: "AI ప్రాథమిక ధాన్యం నాణ్యత అంచనా",
         quickQualityReport: "AI నాణ్యత నివేదిక",
         quickQualityReportDesc: "ధాన్యం గ్రేడ్ & లోపాల నివేదిక",
+        kisanVaniNav: "కిసాన్ వాణి AI",
+        quickKisanVani: "కిసాన్ వాణి AI ని అడగండి",
+        quickKisanVaniDesc: "మీ సేకరణ కోసం వాయిస్ & చాట్ సహాయకుడు",
         aiAdvisoryNotice: "AI ప్రాథమిక విజువల్ అంచనా (సలహా మాత్రమే).",
         overallQuality: "మొత్తం నాణ్యత స్కోరు",
         estimatedGrade: "అంచనా వేసిన గ్రేడ్",
@@ -3271,6 +4026,9 @@ const translations = {
         aiQualityInspectionTitle: "AI தானிய தர மதிப்பீடு",
         quickQualityReport: "AI தர அறிக்கை",
         quickQualityReportDesc: "தானிய தரம் மற்றும் குறைபாடுகள் அறிக்கை",
+        kisanVaniNav: "கிசான் வாணி AI",
+        quickKisanVani: "கிசான் வாணி AI கேளுங்கள்",
+        quickKisanVaniDesc: "கொள்முதல் குரல் மற்றும் உரை உதவியாளர்",
         aiAdvisoryNotice: "AI ஆரம்ப தர மதிப்பீடு (ஆலோசனை மட்டுமே).",
         overallQuality: "ஒட்டுமொத்த தர மதிப்பெண்",
         estimatedGrade: "மதிப்பிடப்பட்ட தரம்",
@@ -3533,6 +4291,9 @@ const translations = {
         aiQualityInspectionTitle: "AI ಧಾನ್ಯ ಗುಣಮಟ್ಟ ಮೌಲ್ಯಮಾಪನ",
         quickQualityReport: "AI ಗುಣಮಟ್ಟ ವರದಿ",
         quickQualityReportDesc: "ಧಾನ್ಯ ಶ್ರೇಣಿ ಮತ್ತು ದೋಷ ವರದಿ ವೀಕ್ಷಿಸಿ",
+        kisanVaniNav: "ಕಿಸಾನ್ ವಾಣಿ AI",
+        quickKisanVani: "ಕಿಸಾನ್ ವಾಣಿ AI ಕೇಳಿ",
+        quickKisanVaniDesc: "ಖರೀದಿಗಾಗಿ ಧ್ವನಿ ಮತ್ತು ಪಠ್ಯ ಸಹಾಯಕ",
         aiAdvisoryNotice: "AI ಪ್ರಾಥಮಿಕ ಗುಣಮಟ್ಟ ಮೌಲ್ಯಮಾಪನ (ಕೇವಲ ಸಲಹೆ).",
         overallQuality: "ಒಟ್ಟಾರೆ ಗುಣಮಟ್ಟದ ಅಂಕ",
         estimatedGrade: "ಅಂದಾಜು ಶ್ರೇಣಿ",
@@ -3795,6 +4556,9 @@ const translations = {
         aiQualityInspectionTitle: "AI ധാന്യ ഗുണനിലവാര വിലയിരുത്തൽ",
         quickQualityReport: "AI ഗുണനിലവാര റിപ്പോർട്ട്",
         quickQualityReportDesc: "ധാന്യ ഗ്രേഡും വൈകല്യ റിപ്പോർട്ടും കാണുക",
+        kisanVaniNav: "കിസാൻ വാണി AI",
+        quickKisanVani: "കിസാൻ വാണി AI യോട് ചോദിക്കൂ",
+        quickKisanVaniDesc: "ശബ്ദ-ടെക്സ്റ്റ് ഡിജിറ്റൽ അസിസ്റ്റന്റ്",
         aiAdvisoryNotice: "AI പ്രാഥമിക ഗുണനിലവാര വിലയിരുത്തൽ (ഉപദേശം മാത്രം).",
         overallQuality: "മൊത്തത്തിലുള്ള ഗുണനിലവാര സ്കോർ",
         estimatedGrade: "കണക്കാക്കിയ ഗ്രേഡ്",

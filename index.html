@@ -98,6 +98,11 @@
                         <span data-language-key="quickQualityReport">Quality Assessment</span>
                     </a>
 
+                    <a href="#" class="nav-item" data-action="kisan-vani" onclick="openKisanVani(); return false;">
+                        <i class="fa-solid fa-microphone-lines" style="color:#059669;"></i>
+                        <span data-language-key="kisanVaniNav">Kisan Vani AI</span>
+                    </a>
+
                     <a href="#" class="nav-item" data-action="centre">
                         <i class="fa-solid fa-building"></i>
                         <span data-language-key="centre">Procurement Centres</span>
@@ -528,6 +533,17 @@
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
 
+                                <button class="quick-action" onclick="openKisanVani()">
+                                    <div class="quick-action-icon" style="background:#ecfdf5; color:#059669;">
+                                        <i class="fa-solid fa-microphone-lines"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="quickKisanVani">Ask Kisan Vani AI</strong>
+                                        <span data-language-key="quickKisanVaniDesc">Voice & text assistant for your procurement</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
                                 <button class="quick-action" onclick="openProcurementReceiptModal()">
                                     <div class="quick-action-icon" style="background:#e8f5ed; color:#174d32;">
                                         <i class="fa-solid fa-receipt"></i>
@@ -853,6 +869,18 @@
 
         </main>
 
+    </div>
+
+    <!-- Kisan Vani Floating AI Assistant Button -->
+    <div class="kisan-vani-fab" id="kisan-vani-launcher" onclick="openKisanVani()" title="Ask Kisan Vani AI Assistant">
+        <div class="kisan-vani-fab-icon">
+            <i class="fa-solid fa-microphone-lines"></i>
+        </div>
+        <div class="kisan-vani-fab-label">
+            <strong>Kisan Vani AI</strong>
+            <span>Voice & Chat</span>
+        </div>
+        <div class="kisan-vani-pulse-ring"></div>
     </div>
 
     <!-- JavaScript -->
