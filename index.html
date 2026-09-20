@@ -16,6 +16,10 @@
 
     <!-- Our CSS -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- Client-side QR Generator & HTML5 Camera QR Scanner -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 </head>
 
 <body>
@@ -62,8 +66,13 @@
                     </a>
 
                     <a href="#" class="nav-item" data-action="tracker">
-                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <i class="fa-solid fa-location-dot"></i>
                         <span data-language-key="track">Track Procurement</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="qr-pass" onclick="openFarmerQRModal(); return false;">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <span data-language-key="myGatePassQR">My Gate Pass QR</span>
                     </a>
 
                     <a href="#" class="nav-item" data-action="history">
@@ -122,6 +131,11 @@
                     <a href="#" class="nav-item" data-action="officer-broadcast" onclick="scrollToOfficerSection('officer-broadcast-section'); return false;">
                         <i class="fa-solid fa-bullhorn"></i>
                         <span data-language-key="navBroadcastTool">Broadcast Alert</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-scan-qr" onclick="openOfficerQRScannerModal(); return false;">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <span data-language-key="scanFarmerQR">Scan Farmer QR</span>
                     </a>
 
                     <a href="#" class="nav-item" data-action="officer-notifications" onclick="openNotifications(); return false;">
@@ -268,6 +282,11 @@
                                 <button class="secondary-button" onclick="openTracker()">
                                     <i class="fa-solid fa-location-dot"></i>
                                     <span id="track-my-procurement" data-language-key="trackMyProcurement">Track My Procurement</span>
+                                </button>
+
+                                <button class="secondary-button" onclick="openFarmerQRModal()" title="Show Gate Pass QR Code" style="background:#fff; border:1px solid #cce8d6; color:#174d32;">
+                                    <i class="fa-solid fa-qrcode"></i>
+                                    <span id="show-my-qr" data-language-key="showMyQR">Show My QR</span>
                                 </button>
                             </div>
 
@@ -473,6 +492,17 @@
                                     <div>
                                         <strong data-language-key="trackMyTurn">Track My Turn</strong>
                                         <span data-language-key="seeLiveQueue">See live queue</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
+                                <button class="quick-action" onclick="openFarmerQRModal()">
+                                    <div class="quick-action-icon" style="background:#e8f5ed; color:#174d32;">
+                                        <i class="fa-solid fa-qrcode"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="quickMyQR">Show Arrival QR Code</strong>
+                                        <span data-language-key="quickMyQRDesc">Gate entry verification pass</span>
                                     </div>
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
@@ -695,6 +725,9 @@
                             <strong data-language-key="yardDispatcherTitle">Yard Queue Dispatcher & Broadcast Controls</strong>
                         </div>
                         <div class="operator-buttons">
+                            <button type="button" class="op-btn op-btn-scan" onclick="openOfficerQRScannerModal()" style="background:#174d32; color:#fff; font-weight:700;">
+                                <i class="fa-solid fa-qrcode"></i> <span data-language-key="scanFarmerQRBtn">Scan Farmer QR</span>
+                            </button>
                             <button type="button" class="op-btn op-btn-call" onclick="officerAdvanceNextQueue()">
                                 <i class="fa-solid fa-bullhorn"></i> <span data-language-key="callNextFarmerBtn">Call Next Farmer</span>
                             </button>

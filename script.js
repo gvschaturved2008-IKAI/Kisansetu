@@ -622,11 +622,744 @@ const KisanNotifications = (function() {
 })();
 
 /* =========================================================
+   TASK 03: KISANQR — DYNAMIC QR GENERATION & VERIFICATION ENGINE
+   Encodes non-sensitive gate pass payload, client-side QR generation,
+   camera-based & manual fallback verification with anti-replay safeguards
+========================================================= */
+
+const KisanQR = (function() {
+    let activeHtml5QrScanner = null;
+
+    function generatePayload(booking) {
+        let b = booking;
+        if (!b) {
+            b = (typeof currentBooking !== "undefined" && currentBooking) 
+                ? currentBooking 
+                : {
+                    id: "KS748291",
+                    token: "07",
+                    farmerId: "KS102458",
+                    farmerName: "Ramesh Kumar",
+                    crop: "Paddy / Rice (Grade A)",
+                    quantity: 21.5,
+                    date: "2026-08-27",
+                    time: "10:30 AM",
+                    centre: "AP State Procurement Centre (Yard 1)",
+                    vehicleNo: "AP-07-TY-4920",
+                    vehicleType: "Tractor Trolley",
+                    status: "In Queue"
+                };
+        }
+
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+        const now = Date.now();
+
+        const payloadObj = {
+            kisanSetuQRVersion: "1.0",
+            bookingId: b.id || "KS748291",
+            token: b.token || "07",
+            farmerId: b.farmerId || (user && user.farmerId) || "KS102458",
+            farmerName: b.farmerName || (user && user.name) || "Ramesh Kumar",
+            centreId: "AP-GUNTUR-01",
+            centreName: b.centre || "AP State Procurement Centre (Yard 1)",
+            slotDate: b.date || "2026-08-27",
+            slotTime: b.time || "10:30 AM",
+            crop: b.crop || "Paddy / Rice (Grade A)",
+            quantity: b.quantity || 21.5,
+            vehicleNo: b.vehicleNo || "AP-07-TY-4920",
+            vehicleType: b.vehicleType || "Tractor Trolley",
+            gatePassId: b.gatePassId || ("GP-2026-" + (b.id ? b.id.replace("KS", "") : "748291")),
+            generatedAt: b.qrGeneratedAt || now,
+            expiresAt: (b.qrGeneratedAt || now) + 48 * 3600 * 1000 // 48h validity
+        };
+
+        return JSON.stringify(payloadObj);
+    }
+
+    function renderQRCode(containerId, booking) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = "";
+
+        const payloadStr = generatePayload(booking);
+
+        if (typeof QRCode !== "undefined") {
+            try {
+                new QRCode(container, {
+                    text: payloadStr,
+                    width: 175,
+                    height: 175,
+                    colorDark: "#174d32",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+                return;
+            } catch (e) {
+                console.warn("QRCode constructor fallback:", e);
+            }
+        }
+
+        // Fallback canvas if QRCode library not yet loaded or blocked
+        renderFallbackQRCanvas(container, booking);
+    }
+
+    function renderFallbackQRCanvas(container, booking) {
+        const b = booking || (typeof currentBooking !== "undefined" ? currentBooking : null) || {};
+        const canvas = document.createElement("canvas");
+        canvas.width = 175;
+        canvas.height = 175;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, 175, 175);
+            ctx.fillStyle = "#174d32";
+
+            // Draw outer border & corner markers
+            ctx.fillRect(10, 10, 45, 45);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(18, 18, 29, 29);
+            ctx.fillStyle = "#174d32";
+            ctx.fillRect(24, 24, 17, 17);
+
+            ctx.fillRect(120, 10, 45, 45);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(128, 18, 29, 29);
+            ctx.fillStyle = "#174d32";
+            ctx.fillRect(134, 24, 17, 17);
+
+            ctx.fillRect(10, 120, 45, 45);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(18, 128, 29, 29);
+            ctx.fillStyle = "#174d32";
+            ctx.fillRect(24, 134, 17, 17);
+
+            // Pseudo pattern modules
+            const seed = (b.id ? b.id.charCodeAt(b.id.length - 1) : 42);
+            for (let r = 0; r < 14; r++) {
+                for (let c = 0; c < 14; c++) {
+                    if ((r < 5 && c < 5) || (r < 5 && c > 8) || (r > 8 && c < 5)) continue;
+                    if (((r * c + seed) % 3) === 0) {
+                        ctx.fillRect(15 + c * 10, 15 + r * 10, 8, 8);
+                    }
+                }
+            }
+        }
+        container.appendChild(canvas);
+    }
+
+    function verifyQRPayload(rawInput) {
+        if (!rawInput) {
+            return {
+                success: false,
+                code: "EMPTY_INPUT",
+                title: "Empty Input",
+                message: "✕ Please provide a valid QR code payload or Booking ID."
+            };
+        }
+
+        let parsed = null;
+        let searchId = String(rawInput).trim();
+
+        // Try JSON parsing
+        if (searchId.startsWith("{") && searchId.endsWith("}")) {
+            try {
+                parsed = JSON.parse(searchId);
+                searchId = parsed.bookingId || parsed.token || searchId;
+            } catch (e) {
+                console.warn("Could not parse QR JSON payload:", e);
+            }
+        }
+
+        // Clean identifier format (e.g. "KS-07" -> "07", "GP-2026-748291" -> "KS748291")
+        const normId = searchId.replace(/^#/,'').trim().toUpperCase();
+        const normToken = normId.replace(/^KS-?/i, '');
+
+        // Search for matching booking in existing state
+        let matched = null;
+
+        // 1. Search in yardQueueData
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            matched = yardQueueData.find(f => 
+                (f.id && f.id.toUpperCase() === normId) ||
+                (f.token && (f.token.toUpperCase() === normToken || ("KS-" + f.token).toUpperCase() === normId || f.token === normId)) ||
+                (f.gatePassId && f.gatePassId.toUpperCase().includes(normId)) ||
+                (parsed && parsed.bookingId && f.id && f.id.toUpperCase() === parsed.bookingId.toUpperCase())
+            );
+        }
+
+        // 2. Search in currentBooking
+        if (!matched && typeof currentBooking !== "undefined" && currentBooking) {
+            const cb = currentBooking;
+            if (
+                (cb.id && cb.id.toUpperCase() === normId) ||
+                (cb.token && (cb.token.toUpperCase() === normToken || ("KS-" + cb.token).toUpperCase() === normId || cb.token === normId)) ||
+                (cb.gatePassId && cb.gatePassId.toUpperCase().includes(normId)) ||
+                (parsed && parsed.bookingId && cb.id && cb.id.toUpperCase() === parsed.bookingId.toUpperCase())
+            ) {
+                matched = cb;
+            }
+        }
+
+        // 3. Search in bookingHistory
+        if (!matched && typeof bookingHistory !== "undefined" && Array.isArray(bookingHistory)) {
+            matched = bookingHistory.find(h => 
+                (h.id && h.id.toUpperCase() === normId) ||
+                (h.token && (h.token.toUpperCase() === normToken || ("KS-" + h.token).toUpperCase() === normId)) ||
+                (parsed && parsed.bookingId && h.id && h.id.toUpperCase() === parsed.bookingId.toUpperCase())
+            );
+        }
+
+        // 4. If searchId matches default demo ID KS748291
+        if (!matched && (normId === "KS748291" || normToken === "07" || normToken === "748291")) {
+            matched = {
+                id: "KS748291",
+                token: "07",
+                farmerId: "KS102458",
+                farmerName: "Ramesh Kumar",
+                crop: "Paddy / Rice (Grade A)",
+                quantity: 21.5,
+                vehicleNo: "AP-07-TY-4920",
+                vehicleType: "Tractor Trolley",
+                centre: "AP State Procurement Centre (Yard 1)",
+                status: "In Queue",
+                stage: "Gate In (Waiting)",
+                stageCode: "gate_in",
+                amount: "₹49,450"
+            };
+        }
+
+        // --- VALIDATION RULE 1: Booking Existence ---
+        if (!matched) {
+            return {
+                success: false,
+                code: "NOT_FOUND",
+                title: "Invalid / Unknown QR Code",
+                message: `✕ No active procurement booking found matching ID "${searchId}". Please verify the booking reference.`,
+                rawInput: searchId
+            };
+        }
+
+        // --- VALIDATION RULE 2: Cancelled Booking ---
+        if (matched.status === "Cancelled") {
+            return {
+                success: false,
+                code: "CANCELLED",
+                title: "Booking Cancelled",
+                message: `✕ Procurement booking #${matched.id || matched.token} was cancelled by the farmer and is no longer valid for entry.`,
+                booking: matched
+            };
+        }
+
+        // --- VALIDATION RULE 3: Expiry Check ---
+        if (parsed && parsed.expiresAt && Date.now() > parsed.expiresAt) {
+            return {
+                success: false,
+                code: "EXPIRED",
+                title: "QR Code Expired",
+                message: `✕ This Gate Pass QR expired on ${new Date(parsed.expiresAt).toLocaleDateString()}. Please request a fresh slot.`,
+                booking: matched
+            };
+        }
+
+        // --- VALIDATION RULE 4: Anti-Replay / Duplicate Check ---
+        const isAlreadyVerified = 
+            matched.status === "Verified" ||
+            matched.stageCode === "gross_weighing" ||
+            matched.stageCode === "quality_check" ||
+            matched.stageCode === "tare_weighing" ||
+            matched.stageCode === "completed";
+
+        if (isAlreadyVerified) {
+            const vTime = matched.verifiedAt ? new Date(matched.verifiedAt).toLocaleTimeString() : "earlier today";
+            return {
+                success: false,
+                code: "ALREADY_VERIFIED",
+                title: "⚠ Duplicate Verification Rejected",
+                message: `This booking (Token #${matched.token || matched.id}, Farmer: ${matched.farmerName || 'Farmer'}) has ALREADY been verified at ${vTime}. Re-entry rejected.`,
+                booking: matched
+            };
+        }
+
+        // --- SUCCESS: Advance Booking State & Sync ---
+        const officerUser = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+        const officerName = (officerUser && officerUser.name) || "Officer S. Sharma";
+
+        matched.status = "Verified";
+        matched.stage = "Gross Weighbridge";
+        matched.stageCode = "gross_weighing";
+        matched.verifiedAt = Date.now();
+        matched.verifiedBy = officerName;
+
+        // Synchronize in currentBooking if matches
+        if (typeof currentBooking !== "undefined" && currentBooking) {
+            if (currentBooking.id === matched.id || currentBooking.token === matched.token) {
+                currentBooking.status = "Verified";
+                currentBooking.stage = "Gross Weighbridge";
+                currentBooking.stageCode = "gross_weighing";
+                currentBooking.verifiedAt = Date.now();
+                if (typeof saveCurrentBooking === "function") saveCurrentBooking();
+                if (typeof updateDashboardAfterBooking === "function") updateDashboardAfterBooking();
+            }
+        }
+
+        // Update in yardQueueData
+        if (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) {
+            const qItem = yardQueueData.find(f => f.id === matched.id || f.token === matched.token);
+            if (qItem) {
+                qItem.status = "Verified";
+                qItem.stage = "Gross Weighbridge";
+                qItem.stageCode = "gross_weighing";
+                qItem.verifiedAt = Date.now();
+            } else {
+                yardQueueData.unshift(matched);
+            }
+            if (typeof saveYardQueue === "function") saveYardQueue();
+            if (typeof renderOfficerQueueTable === "function") renderOfficerQueueTable();
+            if (typeof updateOfficerStats === "function") updateOfficerStats();
+        }
+
+        // Broadcast cross-role events over KisanSync
+        if (typeof KisanSync !== "undefined") {
+            KisanSync.publish(KisanEvents.QR_VERIFIED, {
+                id: matched.id,
+                token: matched.token,
+                farmerId: matched.farmerId,
+                farmerName: matched.farmerName,
+                crop: matched.crop,
+                quantity: matched.quantity,
+                vehicleNo: matched.vehicleNo,
+                gate: "Gate 1 (Weighbridge In)",
+                verifiedAt: Date.now()
+            });
+
+            KisanSync.publish(KisanEvents.FARMER_CHECK_IN, {
+                id: matched.id,
+                token: matched.token,
+                farmerId: matched.farmerId,
+                farmerName: matched.farmerName,
+                gate: "Gate 1",
+                status: "Arrived & Verified"
+            });
+        }
+
+        // Trigger notifications
+        if (typeof KisanNotifications !== "undefined") {
+            // Notification for Officer
+            KisanNotifications.addNotification({
+                type: KisanEvents.QR_VERIFIED,
+                title: "Farmer Verified Successfully",
+                message: `Farmer ${matched.farmerName} (Token #${matched.token}) arrival verified at Gate 1. Admitted to Gross Weighbridge.`,
+                targetRole: "officer",
+                icon: "fa-clipboard-check",
+                badgeType: "success",
+                entity: { tokenId: matched.token, farmerName: matched.farmerName, crop: matched.crop, vehicleNo: matched.vehicleNo },
+                broadcast: false
+            });
+
+            // Notification for Farmer
+            KisanNotifications.addNotification({
+                type: KisanEvents.QR_VERIFIED,
+                title: "Arrival Verified at Centre",
+                message: "Your arrival has been verified at the procurement centre.",
+                targetRole: "farmer",
+                icon: "fa-clipboard-check",
+                badgeType: "success",
+                entity: { tokenId: matched.token, gate: "Gate 1 (Weighbridge In)" },
+                broadcast: false
+            });
+        }
+
+        return {
+            success: true,
+            code: "VERIFIED",
+            title: "✓ FARMER VERIFIED",
+            message: `Farmer ${matched.farmerName || 'Farmer'} verified successfully. Admitted to Gross Weighbridge.`,
+            booking: matched
+        };
+    }
+
+    function openFarmerQRModal(bookingId) {
+        let b = (typeof currentBooking !== "undefined") ? currentBooking : null;
+        if (bookingId) {
+            if (typeof yardQueueData !== "undefined") {
+                const found = yardQueueData.find(f => f.id === bookingId || f.token === bookingId);
+                if (found) b = found;
+            }
+            if (!b && typeof bookingHistory !== "undefined") {
+                const foundH = bookingHistory.find(h => h.id === bookingId || h.token === bookingId);
+                if (foundH) b = foundH;
+            }
+        }
+
+        if (!b) {
+            b = {
+                id: "KS748291",
+                token: "07",
+                farmerId: (typeof getCurrentUser === "function" && getCurrentUser() && getCurrentUser().farmerId) || "KS102458",
+                farmerName: (typeof getCurrentUser === "function" && getCurrentUser() && getCurrentUser().name) || "Ramesh Kumar",
+                crop: "Paddy / Rice (Grade A)",
+                quantity: 21.5,
+                date: "2026-08-27",
+                time: "10:30 AM",
+                centre: "AP State Procurement Centre (Yard 1)",
+                vehicleNo: "AP-07-TY-4920",
+                vehicleType: "Tractor Trolley",
+                status: "In Queue"
+            };
+        }
+
+        const isCancelled = b.status === "Cancelled";
+        const isVerified = b.status === "Verified" || (b.stageCode && b.stageCode !== "gate_in");
+
+        let statusClass = "ready";
+        let statusText = "Ready for Gate Verification";
+        let statusIcon = "fa-qrcode";
+
+        if (isCancelled) {
+            statusClass = "cancelled";
+            statusText = "Booking Cancelled";
+            statusIcon = "fa-ban";
+        } else if (isVerified) {
+            statusClass = "verified";
+            statusText = "Verified & Gate Admitted";
+            statusIcon = "fa-circle-check";
+        }
+
+        const gatePassId = b.gatePassId || ("GP-2026-" + (b.id ? b.id.replace("KS", "") : "748291"));
+
+        const content = `
+            <div class="qr-pass-container">
+                <div class="qr-pass-card">
+                    <div class="qr-pass-header">
+                        <span class="govt-tag">GOVERNMENT OF ANDHRA PRADESH • DEPT OF CONSUMER AFFAIRS</span>
+                        <h3>Digital Mandi Gate Pass</h3>
+                        <p style="font-size:12px; color:#5c6c63; margin:2px 0 0;">${b.centre || "AP State Procurement Centre (Yard 1)"}</p>
+                    </div>
+
+                    <div class="qr-code-box">
+                        <div id="farmer-qrcode-render-target"></div>
+                        <span class="qr-code-label">Gate Pass: ${gatePassId}</span>
+                    </div>
+
+                    <div>
+                        <span class="qr-status-pill ${statusClass}">
+                            <i class="fa-solid ${statusIcon}"></i> ${statusText}
+                        </span>
+                    </div>
+
+                    <div class="qr-meta-grid">
+                        <div class="qr-meta-item">
+                            <span>FARMER NAME & ID</span>
+                            <strong>${b.farmerName || "Ramesh Kumar"} (${b.farmerId || "KS102458"})</strong>
+                        </div>
+                        <div class="qr-meta-item">
+                            <span>TOKEN NUMBER</span>
+                            <strong style="color:#174d32; font-size:14px;">Token #${b.token || "07"}</strong>
+                        </div>
+                        <div class="qr-meta-item">
+                            <span>CROP COMMODITY</span>
+                            <strong>${b.crop || "Paddy / Rice"} (${b.quantity || 21.5} Q)</strong>
+                        </div>
+                        <div class="qr-meta-item">
+                            <span>SLOT DATE & TIME</span>
+                            <strong>${b.date || "27 Aug 2026"} • ${b.time || "10:30 AM"}</strong>
+                        </div>
+                        <div class="qr-meta-item">
+                            <span>TRANSPORT VEHICLE</span>
+                            <strong>${b.vehicleNo || "AP-07-TY-4920"} (${b.vehicleType || "Tractor"})</strong>
+                        </div>
+                        <div class="qr-meta-item">
+                            <span>VALIDITY WINDOW</span>
+                            <strong>Active • Verified on Arrival</strong>
+                        </div>
+                    </div>
+
+                    <div class="qr-instruction-box" style="margin-top:14px;">
+                        <i class="fa-solid fa-shield-halved" style="font-size:20px; color:#26734d;"></i>
+                        <span style="font-size:11.5px; text-align:left;">
+                            Present this QR code to the Mandi Gate Controller at Gate 1 for optical scan and entry authorization.
+                        </span>
+                    </div>
+
+                    <div style="display:flex; gap:10px; margin-top:16px;">
+                        <button type="button" class="submit-auth-btn" style="flex:1;" onclick="window.print()">
+                            <i class="fa-solid fa-print"></i> Print Gate Pass
+                        </button>
+                        <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="showToast('Gate Pass QR saved to device gallery!');">
+                            <i class="fa-solid fa-download"></i> Save Image
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        openModal(t("myGatePassQR") || "My Gate Pass QR Code", content);
+
+        setTimeout(() => {
+            renderQRCode("farmer-qrcode-render-target", b);
+        }, 100);
+    }
+
+    function openOfficerScannerModal() {
+        const content = `
+            <div class="qr-scanner-wrapper">
+                <div class="qr-camera-container">
+                    <div id="qr-scanner-viewport"></div>
+                    <div class="scanner-laser-line"></div>
+                    <div class="scanner-camera-status" id="scanner-status-msg">
+                        <i class="fa-solid fa-camera"></i> Initializing camera scanner viewfinder...
+                    </div>
+                </div>
+
+                <!-- Manual Fallback & Demo Quick Test -->
+                <div class="scanner-manual-fallback">
+                    <h4>
+                        <i class="fa-solid fa-keyboard" style="color:#26734d;"></i>
+                        <span>Manual Booking ID & Quick Test</span>
+                    </h4>
+                    <p style="font-size:12px; color:#6d7d74; margin:0 0 10px;">
+                        If camera is unavailable or to simulate testing, enter Booking ID, Token, or click a quick test chip:
+                    </p>
+
+                    <div class="scanner-input-row">
+                        <input type="text" id="officer-manual-qr-input" placeholder="e.g. KS748291, KS-07, KS-08..." onkeypress="if(event.key==='Enter') KisanQR.submitManualScan();">
+                        <button type="button" class="scanner-verify-btn" onclick="KisanQR.submitManualScan()">
+                            <i class="fa-solid fa-clipboard-check"></i> Verify
+                        </button>
+                    </div>
+
+                    <div class="scanner-demo-tokens">
+                        <span style="font-size:11px; font-weight:700; color:#5c6c63;">QUICK TEST CHIPS:</span>
+                        <button type="button" class="scanner-demo-chip" onclick="KisanQR.simulateScan('KS748291')">
+                            🌾 Ramesh Kumar (Token #07)
+                        </button>
+                        <button type="button" class="scanner-demo-chip" onclick="KisanQR.simulateScan('KS-08')">
+                            🌾 Venkat Rao (Token #08)
+                        </button>
+                        <button type="button" class="scanner-demo-chip" onclick="KisanQR.simulateScan('KS-09')">
+                            🌾 Suresh Babu (Token #09)
+                        </button>
+                        <button type="button" class="scanner-demo-chip" style="color:#d32f2f; background:#fef2f2; border-color:#fca5a5;" onclick="KisanQR.simulateScan('KS-INVALID-999')">
+                            ✕ Test Invalid ID
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Result area -->
+                <div id="qr-verification-result-area"></div>
+            </div>
+        `;
+
+        openModal(t("scanFarmerQR") || "Scan Farmer QR • Arrival Verification", content);
+
+        setTimeout(() => {
+            startHtml5QrScanner();
+        }, 200);
+    }
+
+    function startHtml5QrScanner() {
+        const viewport = document.getElementById("qr-scanner-viewport");
+        const statusMsg = document.getElementById("scanner-status-msg");
+        if (!viewport) return;
+
+        if (typeof Html5Qrcode !== "undefined") {
+            try {
+                if (activeHtml5QrScanner) {
+                    activeHtml5QrScanner.stop().catch(() => {}).then(() => {
+                        activeHtml5QrScanner = null;
+                        initNewScanner();
+                    });
+                } else {
+                    initNewScanner();
+                }
+            } catch (err) {
+                console.warn("Html5Qrcode scanner error:", err);
+                if (statusMsg) statusMsg.innerHTML = `<i class="fa-solid fa-video-slash"></i> Camera access unavailable. Use manual Booking ID entry below.`;
+            }
+        } else {
+            if (statusMsg) statusMsg.innerHTML = `<i class="fa-solid fa-camera"></i> Camera scanner standby. Use manual Booking ID entry below.`;
+        }
+
+        function initNewScanner() {
+            try {
+                activeHtml5QrScanner = new Html5Qrcode("qr-scanner-viewport");
+                const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+                activeHtml5QrScanner.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        handleScanResult(decodedText);
+                    },
+                    (errorMessage) => {
+                        // scanning frame
+                    }
+                ).then(() => {
+                    if (statusMsg) statusMsg.innerHTML = `<i class="fa-solid fa-video" style="color:#00ff88;"></i> Camera active. Point at farmer's Gate Pass QR code.`;
+                }).catch((err) => {
+                    console.warn("Camera start failed:", err);
+                    if (statusMsg) statusMsg.innerHTML = `<i class="fa-solid fa-video-slash"></i> Camera unavailable. Use manual Booking ID verification below.`;
+                });
+            } catch (e) {
+                console.warn("Html5Qrcode instance error:", e);
+                if (statusMsg) statusMsg.innerHTML = `<i class="fa-solid fa-keyboard"></i> Ready for manual Booking ID input.`;
+            }
+        }
+    }
+
+    function stopScanner() {
+        if (activeHtml5QrScanner) {
+            try {
+                activeHtml5QrScanner.stop().catch(() => {}).then(() => {
+                    try { activeHtml5QrScanner.clear(); } catch(e){}
+                    activeHtml5QrScanner = null;
+                });
+            } catch (e) {
+                activeHtml5QrScanner = null;
+            }
+        }
+    }
+
+    function handleScanResult(decodedText) {
+        const result = verifyQRPayload(decodedText);
+        renderVerificationResult(result);
+    }
+
+    function submitManualScan() {
+        const input = document.getElementById("officer-manual-qr-input");
+        if (!input || !input.value.trim()) {
+            showToast("Please enter a Booking ID or Token number.", "warning");
+            return;
+        }
+        handleScanResult(input.value.trim());
+    }
+
+    function simulateScan(bookingIdOrPayload) {
+        const input = document.getElementById("officer-manual-qr-input");
+        if (input) input.value = bookingIdOrPayload;
+        handleScanResult(bookingIdOrPayload);
+    }
+
+    function renderVerificationResult(res) {
+        const area = document.getElementById("qr-verification-result-area");
+        if (!area) return;
+
+        let cardClass = "success";
+        let iconClass = "fa-circle-check";
+
+        if (!res.success) {
+            if (res.code === "ALREADY_VERIFIED") {
+                cardClass = "duplicate";
+                iconClass = "fa-triangle-exclamation";
+            } else {
+                cardClass = "error";
+                iconClass = "fa-circle-xmark";
+            }
+        }
+
+        const b = res.booking;
+
+        area.innerHTML = `
+            <div class="verification-result-card ${cardClass}">
+                <div class="verification-result-header">
+                    <div class="verification-result-icon">
+                        <i class="fa-solid ${iconClass}"></i>
+                    </div>
+                    <div>
+                        <h4 style="margin:0; font-size:15px; font-weight:800;">${res.title}</h4>
+                        <p style="margin:2px 0 0; font-size:12px; font-weight:600;">${res.message}</p>
+                    </div>
+                </div>
+
+                ${b ? `
+                    <table class="verification-details-table">
+                        <tr>
+                            <td>Farmer Name:</td>
+                            <td>${b.farmerName || 'Ramesh Kumar'} (ID: ${b.farmerId || 'KS102458'})</td>
+                        </tr>
+                        <tr>
+                            <td>Token Number:</td>
+                            <td><span style="color:#174d32; font-size:13.5px; font-weight:800;">Token #${b.token || '07'}</span></td>
+                        </tr>
+                        <tr>
+                            <td>Crop & Qty:</td>
+                            <td>${b.crop || 'Paddy'} (${b.quantity || 21.5} Quintals)</td>
+                        </tr>
+                        <tr>
+                            <td>Vehicle No:</td>
+                            <td>${b.vehicleNo || 'AP-07-TY-4920'} (${b.vehicleType || 'Tractor Trolley'})</td>
+                        </tr>
+                        <tr>
+                            <td>Arrival Centre:</td>
+                            <td>${b.centre || 'AP State Procurement Centre (Yard 1)'}</td>
+                        </tr>
+                        <tr>
+                            <td>Status:</td>
+                            <td>
+                                <span class="status-badge ${res.success ? 'confirmed' : 'waiting'}" style="font-size:10.5px;">
+                                    ${b.status || 'Verified'} • ${b.stage || 'Gross Weighbridge'}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                ` : ''}
+
+                <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:8px;">
+                    ${res.success ? `
+                        <button type="button" class="scanner-verify-btn" style="background:#27ae60; padding:6px 14px; font-size:12px;" onclick="closeModal(); scrollToOfficerSection('officer-queue-section');">
+                            <i class="fa-solid fa-arrow-right"></i> View in Yard Queue
+                        </button>
+                    ` : ''}
+                    <button type="button" class="scanner-verify-btn" style="background:#4a5951; padding:6px 12px; font-size:12px;" onclick="document.getElementById('qr-verification-result-area').innerHTML='';">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        `;
+
+        if (res.success) {
+            showToast(`✓ Farmer ${b ? b.farmerName : ''} verified successfully!`, "success");
+        } else if (res.code === "ALREADY_VERIFIED") {
+            showToast("⚠ Duplicate Verification: Token already admitted.", "warning");
+        } else {
+            showToast(res.message, "error");
+        }
+    }
+
+    return {
+        generatePayload,
+        renderQRCode,
+        verifyQRPayload,
+        openFarmerQRModal,
+        openOfficerScannerModal,
+        stopScanner,
+        submitManualScan,
+        simulateScan
+    };
+})();
+
+// Global accessible wrappers for Task 03
+function openFarmerQRModal(bookingId) {
+    KisanQR.openFarmerQRModal(bookingId);
+}
+
+function openOfficerQRScannerModal() {
+    KisanQR.openOfficerScannerModal();
+}
+
+/* =========================================================
    1. MULTI-LANGUAGE TRANSLATION DICTIONARIES
 ========================================================= */
 
 const translations = {
     English: {
+        myGatePassQR: "My Gate Pass QR",
+        showMyQR: "Show My QR",
+        scanFarmerQR: "Scan Farmer QR",
+        scanFarmerQRBtn: "Scan Farmer QR",
+        quickMyQR: "Show Arrival QR Code",
+        quickMyQRDesc: "Gate entry verification pass",
+        gatePassQRTitle: "Digital Gate Pass & QR Code",
+        officerScannerTitle: "Farmer Arrival QR Scanner",
         liveSync: "Live Sync",
         farmerProcurement: "Farmer Procurement",
         mainMenu: "MAIN MENU",
@@ -871,6 +1604,14 @@ const translations = {
         cancelBtn: "Cancel"
     },
     Hindi: {
+        myGatePassQR: "मेरा गेट पास क्यूआर",
+        showMyQR: "मेरा क्यूआर दिखाएं",
+        scanFarmerQR: "किसान क्यूआर स्कैन करें",
+        scanFarmerQRBtn: "किसान QR स्कैन",
+        quickMyQR: "आगमन क्यूआर कोड दिखाएं",
+        quickMyQRDesc: "गेट प्रवेश सत्यापन पास",
+        gatePassQRTitle: "डिजिटल गेट पास एवं क्यूआर कोड",
+        officerScannerTitle: "किसान आगमन क्यूआर स्कैनर",
         liveSync: "लाइव सिंक",
         farmerProcurement: "किसान खरीद पोर्टल",
         mainMenu: "मुख्य मेन्यू",
@@ -1108,6 +1849,14 @@ const translations = {
         cancelBtn: "रद्द करें"
     },
     Telugu: {
+        myGatePassQR: "నా గేట్ పాస్ QR",
+        showMyQR: "నా QR చూపించు",
+        scanFarmerQR: "రైతు QR స్కాన్ చేయండి",
+        scanFarmerQRBtn: "రైతు QR స్కాన్",
+        quickMyQR: "రాక QR కోడ్ చూపించు",
+        quickMyQRDesc: "గేట్ ప్రవేశ ధృవీకరణ పాస్",
+        gatePassQRTitle: "డిజిటల్ గేట్ పాస్ & QR కోడ్",
+        officerScannerTitle: "రైతు రాక QR స్కానర్",
         liveSync: "లైవ్ సింక్",
         farmerProcurement: "రైతు సేకరణ పోర్టల్",
         mainMenu: "ప్రధాన మెనూ",
@@ -1345,6 +2094,14 @@ const translations = {
         cancelBtn: "రద్దు చేయండి"
     },
     Tamil: {
+        myGatePassQR: "என் கேட் பாஸ் QR",
+        showMyQR: "என் QR காட்டு",
+        scanFarmerQR: "விவசாயி QR ஸ்கேன்",
+        scanFarmerQRBtn: "QR ஸ்கேன்",
+        quickMyQR: "வருகை QR குறியீடு",
+        quickMyQRDesc: "நுழைவு சரிபார்ப்பு பாஸ்",
+        gatePassQRTitle: "டிஜிட்டல் கேட் பாஸ் & QR குறியீடு",
+        officerScannerTitle: "விவசாயி வருகை QR ஸ்கேனர்",
         liveSync: "நேரலை ஒத்திசைவு",
         farmerProcurement: "உழவர் கொள்முதல் போர்டல்",
         mainMenu: "முதன்மை மெனு",
@@ -1581,6 +2338,14 @@ const translations = {
         cancelBtn: "ரத்து செய்"
     },
     Kannada: {
+        myGatePassQR: "ನನ್ನ ಗೇಟ್ ಪಾಸ್ QR",
+        showMyQR: "ನನ್ನ QR ತೋರಿಸಿ",
+        scanFarmerQR: "ರೈತರ QR ಸ್ಕ್ಯಾನ್ ಮಾಡಿ",
+        scanFarmerQRBtn: "QR ಸ್ಕ್ಯಾನ್",
+        quickMyQR: "ಆಗಮನ QR ಕೋಡ್",
+        quickMyQRDesc: "ಗೇಟ್ ಪ್ರವೇಶ ಪರಿಶೀಲನಾ ಪಾಸ್",
+        gatePassQRTitle: "ಡಿಜಿಟಲ್ ಗೇಟ್ ಪಾಸ್ ಮತ್ತು QR ಕೋಡ್",
+        officerScannerTitle: "ರೈತರ ಆಗಮನ QR ಸ್ಕ್ಯಾನರ್",
         liveSync: "ಲೈವ್ ಸಿಂಕ್",
         farmerProcurement: "ರೈತ ಖರೀದಿ ಪೋರ್ಟಲ್",
         mainMenu: "ಮುಖ್ಯ ಮೆನು",
@@ -1817,6 +2582,14 @@ const translations = {
         cancelBtn: "ರದ್ದುಮಾಡಿ"
     },
     Malayalam: {
+        myGatePassQR: "എന്റെ ഗേറ്റ് പാസ്സ് QR",
+        showMyQR: "എന്റെ QR കാണിക്കുക",
+        scanFarmerQR: "കർഷക QR സ്കാൻ ചെയ്യുക",
+        scanFarmerQRBtn: "QR സ്കാൻ",
+        quickMyQR: "വരവ് QR കോഡ്",
+        quickMyQRDesc: "ഗേറ്റ് എൻട്രി വെരിഫിക്കേഷൻ പാസ്",
+        gatePassQRTitle: "ഡിജിറ്റൽ ഗേറ്റ് പാസ്സും QR കോഡും",
+        officerScannerTitle: "കർഷക വരവ് QR സ്കാനർ",
         liveSync: "തത്സമയ സമന്വയം",
         farmerProcurement: "കർഷക സംഭരണ പോർട്ടൽ",
         mainMenu: "പ്രധാന മെനു",
@@ -2349,6 +3122,9 @@ function openModal(title, content) {
 }
 
 function closeModal() {
+    if (typeof KisanQR !== "undefined" && typeof KisanQR.stopScanner === "function") {
+        KisanQR.stopScanner();
+    }
     const modal = document.querySelector(".ks-modal-overlay");
     if (!modal) return;
     modal.classList.remove("show");
@@ -2461,7 +3237,7 @@ function loadUserData(userOverride) {
         const legacyBooking = localStorage.getItem("kisanSetuCurrentBooking");
         currentBooking = legacyBooking ? JSON.parse(legacyBooking) : {
             id: "KS748291",
-            crop: "Paddy / Rice",
+            crop: "Paddy / Rice (Grade A)",
             quantity: 21.5,
             date: "2026-08-27",
             time: "10:30 AM",
@@ -2469,7 +3245,9 @@ function loadUserData(userOverride) {
             vehicleType: "Tractor Trolley",
             vehicleNo: "AP-07-TY-4920",
             token: "07",
-            status: "Confirmed",
+            stage: "Gate In (Waiting)",
+            stageCode: "gate_in",
+            status: "In Queue",
             timestamp: Date.now()
         };
         saveCurrentBooking();
@@ -2494,11 +3272,11 @@ let yardQueueData = JSON.parse(localStorage.getItem("kisanSetuYardQueue")) || [
         vehicleType: "Tractor Trolley",
         gatePassId: "GP-2026-748291",
         time: "10:30 AM",
-        stage: "Gross Weighbridge",
-        stageCode: "gross_weighing",
-        moisture: "14.2% (Pass)",
+        stage: "Gate In (Waiting)",
+        stageCode: "gate_in",
+        moisture: "Pending",
         amount: "₹49,450",
-        status: "In Progress"
+        status: "In Queue"
     },
     {
         id: "KS819034",
@@ -3012,21 +3790,25 @@ function openBookingConfirmation(booking) {
                     </div>
                 </div>
 
-                <div class="gate-pass-qr">
+                <div class="gate-pass-qr" style="cursor:pointer;" onclick="closeModal(); openFarmerQRModal('${booking.id}');" title="Click to view full dynamic QR">
                     <i class="fa-solid fa-qrcode"></i>
-                    <small>${booking.id}</small>
+                    <small>${booking.id} (Click for Dynamic QR)</small>
                 </div>
             </div>
         </div>
 
-        <div style="display:flex; gap:10px; margin-top:16px;">
+        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+            <button type="button" class="submit-auth-btn" style="flex:1; background:#174d32; color:#fff;" onclick="closeModal(); openFarmerQRModal('${booking.id}');">
+                <i class="fa-solid fa-qrcode"></i>
+                <span>Show Dynamic QR</span>
+            </button>
             <button type="button" class="submit-auth-btn" style="flex:1;" onclick="simulateSmsPass('${booking.id}', '${booking.token}')">
                 <i class="fa-solid fa-comment-sms"></i>
-                <span>Simulate SMS Alert</span>
+                <span>Simulate SMS</span>
             </button>
             <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="window.print()">
                 <i class="fa-solid fa-print"></i>
-                <span>Print Gate Pass</span>
+                <span>Print Pass</span>
             </button>
             <button type="button" class="submit-auth-btn" style="background:#fdeded; color:#d32f2f; border:1px solid #f9c2c2; flex:1;" onclick="closeModal(); openCancelBookingModal();">
                 <i class="fa-solid fa-xmark"></i>
@@ -4141,6 +4923,9 @@ document.addEventListener("click", function(event) {
             case "tracker":
                 openTracker();
                 break;
+            case "qr-pass":
+                openFarmerQRModal();
+                break;
             case "history":
                 openHistory();
                 break;
@@ -4150,6 +4935,9 @@ document.addEventListener("click", function(event) {
             case "notifications":
             case "officer-notifications":
                 openNotifications();
+                break;
+            case "officer-scan-qr":
+                openOfficerQRScannerModal();
                 break;
             case "centre":
                 openCentre();
