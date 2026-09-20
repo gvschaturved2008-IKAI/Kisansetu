@@ -7,11 +7,169 @@
 console.log("KisanSetu JavaScript Initialized Successfully");
 
 /* =========================================================
+   KISANSYNC — REAL-TIME CROSS-ROLE EVENT & STATE BUS
+   Uses HTML5 BroadcastChannel API with localStorage event fallback
+   Enables instant 2-way real-time sync between Farmer & Mandi Officer
+========================================================= */
+
+const KISAN_SYNC_CHANNEL_NAME = "kisan_setu_realtime_sync_v1";
+const KISAN_SYNC_STORAGE_KEY = "kisan_setu_bus_event";
+
+const KisanEvents = {
+    FARMER_SLOT_BOOKED: "FARMER_SLOT_BOOKED",
+    FARMER_SLOT_CANCELLED: "FARMER_SLOT_CANCELLED",
+    FARMER_PROCUREMENT_COMPLETED: "FARMER_PROCUREMENT_COMPLETED",
+    OFFICER_STAGE_ADVANCED: "OFFICER_STAGE_ADVANCED",
+    OFFICER_TOKEN_CALLED: "OFFICER_TOKEN_CALLED",
+    OFFICER_BROADCAST_SENT: "OFFICER_BROADCAST_SENT",
+    OFFICER_SPOT_PASS_ISSUED: "OFFICER_SPOT_PASS_ISSUED",
+    OFFICER_TOKEN_CANCELLED: "OFFICER_TOKEN_CANCELLED",
+    OFFICER_QUEUE_RESET: "OFFICER_QUEUE_RESET",
+    NOTIFICATION_CREATED: "NOTIFICATION_CREATED",
+    PAYMENT_UPDATED: "PAYMENT_UPDATED"
+};
+
+const KisanSync = (function() {
+    const sessionId = "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+    const listeners = {};
+    let channel = null;
+    let isBroadcastSupported = false;
+    const processedEventIds = new Set();
+
+    // Initialize BroadcastChannel with error handling
+    try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+            channel = new BroadcastChannel(KISAN_SYNC_CHANNEL_NAME);
+            channel.onmessage = (messageEvent) => {
+                if (messageEvent && messageEvent.data) {
+                    handleIncomingEvent(messageEvent.data);
+                }
+            };
+            isBroadcastSupported = true;
+        }
+    } catch (e) {
+        console.warn("BroadcastChannel fallback to storage event:", e);
+    }
+
+    // Storage event listener fallback (for older browsers or cross-origin isolated contexts)
+    if (typeof window !== "undefined") {
+        window.addEventListener("storage", (storageEvent) => {
+            if (storageEvent.key === KISAN_SYNC_STORAGE_KEY && storageEvent.newValue) {
+                try {
+                    const eventData = JSON.parse(storageEvent.newValue);
+                    handleIncomingEvent(eventData);
+                } catch (err) {
+                    console.error("Error parsing sync storage event", err);
+                }
+            }
+        });
+    }
+
+    function handleIncomingEvent(eventData) {
+        if (!eventData || !eventData.type || !eventData.eventId) return;
+
+        // Prevent processing own events or duplicates
+        if (eventData.senderSessionId === sessionId) return;
+        if (processedEventIds.has(eventData.eventId)) return;
+
+        // Keep cache bounded to 100 events
+        processedEventIds.add(eventData.eventId);
+        if (processedEventIds.size > 100) {
+            const firstItem = processedEventIds.values().next().value;
+            processedEventIds.delete(firstItem);
+        }
+
+        // Pulse live sync indicator
+        pulseLiveSyncIndicator();
+
+        // Dispatch to registered type listeners
+        const eventListeners = listeners[eventData.type] || [];
+        eventListeners.forEach(fn => {
+            try {
+                fn(eventData.payload, eventData);
+            } catch (err) {
+                console.error(`Error in KisanSync listener for [${eventData.type}]:`, err);
+            }
+        });
+
+        // Also notify wildcard listeners
+        const allListeners = listeners["*"] || [];
+        allListeners.forEach(fn => {
+            try {
+                fn(eventData.type, eventData.payload, eventData);
+            } catch (err) {
+                console.error("Error in KisanSync wildcard listener:", err);
+            }
+        });
+    }
+
+    function publish(type, payload = {}) {
+        const eventId = "evt_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+        const eventData = {
+            type,
+            eventId,
+            senderSessionId: sessionId,
+            senderRole: (typeof getCurrentUser === "function" && getCurrentUser() && getCurrentUser().role) || "farmer",
+            timestamp: Date.now(),
+            payload
+        };
+
+        // Broadcast via BroadcastChannel
+        if (channel && isBroadcastSupported) {
+            channel.postMessage(eventData);
+        }
+
+        // Also update localStorage for fallback and cross-tab storage triggers
+        try {
+            localStorage.setItem(KISAN_SYNC_STORAGE_KEY, JSON.stringify(eventData));
+        } catch (e) {
+            console.warn("Error setting sync storage key", e);
+        }
+
+        pulseLiveSyncIndicator();
+        return eventData;
+    }
+
+    function subscribe(type, callback) {
+        if (!listeners[type]) {
+            listeners[type] = [];
+        }
+        listeners[type].push(callback);
+        return () => {
+            listeners[type] = listeners[type].filter(cb => cb !== callback);
+        };
+    }
+
+    function onAny(callback) {
+        return subscribe("*", callback);
+    }
+
+    function pulseLiveSyncIndicator() {
+        const ind = document.getElementById("topbar-live-sync");
+        if (ind) {
+            ind.classList.add("synced");
+            setTimeout(() => {
+                ind.classList.remove("synced");
+            }, 1200);
+        }
+    }
+
+    return {
+        publish,
+        subscribe,
+        onAny,
+        sessionId,
+        isSupported: () => isBroadcastSupported
+    };
+})();
+
+/* =========================================================
    1. MULTI-LANGUAGE TRANSLATION DICTIONARIES
 ========================================================= */
 
 const translations = {
     English: {
+        liveSync: "Live Sync",
         farmerProcurement: "Farmer Procurement",
         mainMenu: "MAIN MENU",
         services: "SERVICES",
@@ -248,6 +406,7 @@ const translations = {
         cancelBtn: "Cancel"
     },
     Hindi: {
+        liveSync: "लाइव सिंक",
         farmerProcurement: "किसान खरीद पोर्टल",
         mainMenu: "मुख्य मेन्यू",
         services: "सेवाएं",
@@ -476,6 +635,7 @@ const translations = {
         cancelBtn: "रद्द करें"
     },
     Telugu: {
+        liveSync: "లైవ్ సింక్",
         farmerProcurement: "రైతు సేకరణ పోర్టల్",
         mainMenu: "ప్రధాన మెనూ",
         services: "సేవలు",
@@ -704,6 +864,7 @@ const translations = {
         cancelBtn: "రద్దు చేయండి"
     },
     Tamil: {
+        liveSync: "நேரலை ஒத்திசைவு",
         farmerProcurement: "உழவர் கொள்முதல் போர்டல்",
         mainMenu: "முதன்மை மெனு",
         services: "சேவைகள்",
@@ -932,6 +1093,7 @@ const translations = {
         cancelBtn: "ரத்து செய்"
     },
     Kannada: {
+        liveSync: "ಲೈವ್ ಸಿಂಕ್",
         farmerProcurement: "ರೈತ ಖರೀದಿ ಪೋರ್ಟಲ್",
         mainMenu: "ಮುಖ್ಯ ಮೆನು",
         services: "ಸೇವೆಗಳು",
@@ -1160,6 +1322,7 @@ const translations = {
         cancelBtn: "ರದ್ದುಮಾಡಿ"
     },
     Malayalam: {
+        liveSync: "തത്സമയ സമന്വയം",
         farmerProcurement: "കർഷക സംഭരണ പോർട്ടൽ",
         mainMenu: "പ്രധാന മെനു",
         services: "സേവനങ്ങൾ",
@@ -2242,6 +2405,37 @@ function handleBookingSubmit(e) {
     });
     saveBookingHistory();
 
+    const user = getCurrentUser();
+    const yardEntry = {
+        id: bookingId,
+        token: tokenNo,
+        farmerId: user.farmerId || "KS102458",
+        farmerName: user.name || "Ramesh Kumar",
+        crop: crop,
+        quantity: quantity,
+        vehicleNo: vehicleNo,
+        vehicleType: vehicleType,
+        gatePassId: "GP-2026-" + bookingId.replace("KS", ""),
+        time: time,
+        stage: "Gate In (Waiting)",
+        stageCode: "gate_in",
+        moisture: "Pending",
+        amount: totalAmount,
+        status: "In Queue"
+    };
+
+    // Update yardQueueData and save
+    yardQueueData = yardQueueData.filter(f => f.id !== bookingId && f.farmerId !== user.farmerId);
+    yardQueueData.unshift(yardEntry);
+    saveYardQueue();
+
+    // Broadcast real-time sync event across roles
+    KisanSync.publish(KisanEvents.FARMER_SLOT_BOOKED, {
+        booking: currentBooking,
+        farmer: user,
+        yardEntry: yardEntry
+    });
+
     updateDashboardAfterBooking();
     closeModal();
 
@@ -2438,6 +2632,12 @@ function farmerCancelProcurement() {
     const confirmed = confirm("Are you sure you want to cancel your active procurement slot (#" + currentBooking.token + ")?");
     if (!confirmed) return;
 
+    const user = getCurrentUser();
+    const farmerId = (user && user.farmerId) || "KS102458";
+    const farmerName = (user && user.name) || "Ramesh Kumar";
+    const cancelledId = currentBooking.id;
+    const cancelledToken = currentBooking.token;
+
     currentBooking.status = "Cancelled";
     saveCurrentBooking();
 
@@ -2445,9 +2645,17 @@ function farmerCancelProcurement() {
     if (histItem) histItem.status = "Cancelled";
     saveBookingHistory();
 
-    const farmerId = (getCurrentUser() && getCurrentUser().farmerId) || "KS102458";
     yardQueueData = yardQueueData.filter(f => f.id !== currentBooking.id && f.farmerId !== farmerId);
     saveYardQueue();
+
+    // Broadcast cancellation across roles
+    KisanSync.publish(KisanEvents.FARMER_SLOT_CANCELLED, {
+        bookingId: cancelledId,
+        token: cancelledToken,
+        farmerId: farmerId,
+        farmerName: farmerName,
+        reason: "Cancelled by farmer in queue tracker"
+    });
 
     closeModal();
     updateDashboardAfterBooking();
@@ -2460,14 +2668,22 @@ function farmerCompleteProcurement() {
         return;
     }
 
+    const user = getCurrentUser();
+    const farmerId = (user && user.farmerId) || "KS102458";
+    const farmerName = (user && user.name) || "Ramesh Kumar";
+    const bookingId = currentBooking.id;
+    const tokenNo = currentBooking.token;
+    const amount = currentBooking.amount || "₹48,650";
+
     currentBooking.status = "Completed";
+    currentBooking.stageCode = "completed";
+    currentBooking.stage = "Procurement Completed";
     saveCurrentBooking();
 
     const histItem = bookingHistory.find(h => h.id === currentBooking.id);
     if (histItem) histItem.status = "Completed";
     saveBookingHistory();
 
-    const farmerId = (getCurrentUser() && getCurrentUser().farmerId) || "KS102458";
     const queueItem = yardQueueData.find(f => f.id === currentBooking.id || f.farmerId === farmerId);
     if (queueItem) {
         queueItem.stageCode = "completed";
@@ -2476,9 +2692,18 @@ function farmerCompleteProcurement() {
         saveYardQueue();
     }
 
+    // Broadcast completion event across roles
+    KisanSync.publish(KisanEvents.FARMER_PROCUREMENT_COMPLETED, {
+        bookingId: bookingId,
+        token: tokenNo,
+        farmerId: farmerId,
+        farmerName: farmerName,
+        amount: amount
+    });
+
     closeModal();
     updateDashboardAfterBooking();
-    showToast("✅ Procurement completed! ₹48,650 DBT settlement initiated.", "success");
+    showToast(`✅ Procurement completed! ${amount} DBT settlement initiated.`, "success");
 }
 
 function advanceQueueStep() {
@@ -2790,27 +3015,41 @@ function openNotifications() {
 
 function markAllNotificationsRead() {
     notificationsList.forEach(n => n.unread = false);
-    const badge = document.getElementById("sidebar-notification-badge");
-    const dot = document.getElementById("topbar-notif-dot");
-    if (badge) badge.textContent = "0";
-    if (dot) dot.style.display = "none";
+    updateNotificationBadge();
     closeModal();
     showToast(t("allNotifReadSuccess"));
 }
 
-function playVoiceAnnouncement() {
-    const lang = localStorage.getItem("kisanSetuLanguage") || "English";
-    let text = "Dear Ramesh Kumar, your token number KS-07 is called for crop weighing at Gate 2. Please proceed.";
-    if (lang === "Telugu") {
-        text = "రైతు రమేష్ కుమార్ గారు, మీ టోకెన్ నంబర్ KS-07 తూకం కోసం కౌంటర్ 2 వద్దకు రండి.";
-    } else if (lang === "Hindi") {
-        text = "किसान रमेश कुमार जी, आपका टोकन नंबर KS-07 तौल काउंटर 2 पर बुलाया गया है। कृपया आगे बढ़ें।";
+function updateNotificationBadge() {
+    const unreadCount = notificationsList.filter(n => n.unread).length;
+    const badge = document.getElementById("sidebar-notification-badge");
+    const dot = document.getElementById("topbar-notif-dot");
+    if (badge) badge.textContent = String(unreadCount);
+    if (dot) {
+        dot.style.display = unreadCount > 0 ? "block" : "none";
+    }
+}
+
+function playVoiceAnnouncement(customText, targetLang) {
+    const lang = targetLang || localStorage.getItem("kisanSetuLanguage") || "English";
+    let text = customText;
+    if (!text) {
+        text = "Dear Ramesh Kumar, your token number KS-07 is called for crop weighing at Gate 2. Please proceed.";
+        if (lang === "Telugu") {
+            text = "రైతు రమేష్ కుమార్ గారు, మీ టోకెన్ నంబర్ KS-07 తూకం కోసం కౌంటర్ 2 వద్దకు రండి.";
+        } else if (lang === "Hindi") {
+            text = "किसान रमेश कुमार जी, आपका टोकन नंबर KS-07 तौल काउंटर 2 पर बुलाया गया है। कृपया आगे बढ़ें।";
+        }
     }
 
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 0.9;
+        if (lang === "Hindi") utterance.lang = "hi-IN";
+        else if (lang === "Telugu") utterance.lang = "te-IN";
+        else if (lang === "Tamil") utterance.lang = "ta-IN";
+        else utterance.lang = "en-IN";
         window.speechSynthesis.speak(utterance);
         showToast("🔊 Voice Announcement playing in " + lang + "...");
     } else {
@@ -3548,10 +3787,11 @@ function officerAdvanceFarmerStage(id) {
         showToast(`Token #${item.token} Weighment complete! ₹${item.amount} DBT payout queued.`, "success");
     }
 
-    if (currentBooking && (currentBooking.id === id || id === "KS748291")) {
+    if (currentBooking && (currentBooking.id === id || id === "KS748291" || currentBooking.token === item.token)) {
         currentBooking.stageCode = item.stageCode;
         currentBooking.stage = item.stage;
         currentBooking.status = item.status;
+        if (item.moisture) currentBooking.moisture = item.moisture;
         saveCurrentBooking();
         updateDashboardAfterBooking();
     }
@@ -3559,6 +3799,19 @@ function officerAdvanceFarmerStage(id) {
     saveYardQueue();
     renderOfficerQueueTable();
     updateOfficerStats();
+
+    // Broadcast stage advancement to farmer and connected tabs
+    KisanSync.publish(KisanEvents.OFFICER_STAGE_ADVANCED, {
+        id: item.id,
+        farmerId: item.farmerId,
+        farmerName: item.farmerName,
+        token: item.token,
+        stage: item.stage,
+        stageCode: item.stageCode,
+        moisture: item.moisture,
+        amount: item.amount,
+        status: item.status
+    });
 }
 
 function officerCompleteProcurement(id) {
@@ -3569,7 +3822,7 @@ function officerCompleteProcurement(id) {
     item.stage = "Procurement Completed";
     item.status = "Completed";
 
-    if (currentBooking && (currentBooking.id === id || id === "KS748291")) {
+    if (currentBooking && (currentBooking.id === id || id === "KS748291" || currentBooking.token === item.token)) {
         currentBooking.stageCode = "completed";
         currentBooking.stage = "Procurement Completed";
         currentBooking.status = "Completed";
@@ -3586,6 +3839,29 @@ function officerCompleteProcurement(id) {
     saveYardQueue();
     renderOfficerQueueTable();
     updateOfficerStats();
+
+    // Broadcast stage completion and payment event
+    KisanSync.publish(KisanEvents.OFFICER_STAGE_ADVANCED, {
+        id: item.id,
+        farmerId: item.farmerId,
+        farmerName: item.farmerName,
+        token: item.token,
+        stage: item.stage,
+        stageCode: item.stageCode,
+        moisture: item.moisture,
+        amount: item.amount,
+        status: item.status,
+        isFinalized: true
+    });
+
+    KisanSync.publish(KisanEvents.PAYMENT_UPDATED, {
+        farmerId: item.farmerId,
+        bookingId: item.id,
+        token: item.token,
+        amount: item.amount,
+        status: "Approved & DBT Credited"
+    });
+
     showToast(`✅ Procurement finalized for Token #${item.token} (${item.farmerName})! J-Form created and DBT released.`, "success");
 }
 
@@ -3596,10 +3872,11 @@ function officerCancelFarmerToken(id) {
     const confirmed = confirm(`Are you sure you want to cancel Token #${item.token} for ${item.farmerName}?`);
     if (!confirmed) return;
 
+    const cancelledItem = { ...item };
     yardQueueData = yardQueueData.filter(f => f.id !== id);
     saveYardQueue();
 
-    if (currentBooking && currentBooking.id === id) {
+    if (currentBooking && (currentBooking.id === id || currentBooking.token === cancelledItem.token)) {
         currentBooking.status = "Cancelled";
         saveCurrentBooking();
         updateDashboardAfterBooking();
@@ -3607,13 +3884,31 @@ function officerCancelFarmerToken(id) {
 
     renderOfficerQueueTable();
     updateOfficerStats();
-    showToast(`⚠️ Token #${item.token} (${item.farmerName}) removed from yard queue.`, "warning");
+
+    // Broadcast cancellation across roles
+    KisanSync.publish(KisanEvents.OFFICER_TOKEN_CANCELLED, {
+        id: cancelledItem.id,
+        farmerId: cancelledItem.farmerId,
+        farmerName: cancelledItem.farmerName,
+        token: cancelledItem.token
+    });
+
+    showToast(`⚠️ Token #${cancelledItem.token} (${cancelledItem.farmerName}) removed from yard queue.`, "warning");
 }
 
 function officerCallFarmerToken(token, name) {
     const text = `Attention please. Token number ${token}, Farmer ${name}, please report to Weighbridge Gate 1 immediately.`;
     playVoiceAnnouncement(text, "English");
     showToast(`📢 Token #${token} (${name}) called over yard loudspeaker!`, "info");
+
+    // Broadcast loudspeaker call to farmer interface
+    KisanSync.publish(KisanEvents.OFFICER_TOKEN_CALLED, {
+        token: token,
+        farmerName: name,
+        officerIncharge: (getCurrentUser() && getCurrentUser().name) || "Officer S. Sharma",
+        gate: "Weighbridge Gate 1",
+        timestamp: Date.now()
+    });
 }
 
 function officerAdvanceNextQueue() {
@@ -3646,6 +3941,7 @@ function updateOfficerStats() {
 
 function resetOfficerYardQueue() {
     localStorage.removeItem("kisanSetuYardQueue");
+    KisanSync.publish(KisanEvents.OFFICER_QUEUE_RESET, {});
     location.reload();
 }
 
@@ -3683,6 +3979,13 @@ function handleSendBroadcast(e) {
 
     playVoiceAnnouncement(message, "English");
     showToast(`📢 Broadcast sent: "${message.substring(0, 50)}..." via PA system & SMS!`, "success");
+
+    // Broadcast yard announcement to all connected farmer tabs
+    KisanSync.publish(KisanEvents.OFFICER_BROADCAST_SENT, {
+        message: message,
+        officer: (getCurrentUser() && getCurrentUser().name) || "Mandi Incharge",
+        timestamp: Date.now()
+    });
 }
 
 function scrollToOfficerSection(sectionId) {
@@ -3927,6 +4230,12 @@ function handleSpotBookingSubmit(e) {
     closeModal();
     renderOfficerQueueTable();
     updateOfficerStats();
+
+    // Broadcast spot pass issued
+    KisanSync.publish(KisanEvents.OFFICER_SPOT_PASS_ISSUED, {
+        entry: newEntry
+    });
+
     showToast(`✅ Spot Gate Pass #${newEntry.gatePassId} issued for ${name}! Token: #${nextToken}.`);
 }
 
@@ -4001,6 +4310,12 @@ function confirmCancelBooking() {
     const reason = selectedRadio ? selectedRadio.value : "Cancelled by farmer";
 
     if (currentBooking) {
+        const user = getCurrentUser();
+        const farmerId = (user && user.farmerId) || "KS102458";
+        const farmerName = (user && user.name) || "Ramesh Kumar";
+        const cancelledId = currentBooking.id;
+        const cancelledToken = currentBooking.token;
+
         currentBooking.status = "Cancelled";
         currentBooking.cancelReason = reason;
         saveCurrentBooking();
@@ -4023,8 +4338,17 @@ function confirmCancelBooking() {
         }
         saveBookingHistory();
 
-        yardQueueData = yardQueueData.filter(f => f.id !== currentBooking.id);
+        yardQueueData = yardQueueData.filter(f => f.id !== currentBooking.id && f.farmerId !== farmerId);
         saveYardQueue();
+
+        // Broadcast cancellation across roles
+        KisanSync.publish(KisanEvents.FARMER_SLOT_CANCELLED, {
+            bookingId: cancelledId,
+            token: cancelledToken,
+            farmerId: farmerId,
+            farmerName: farmerName,
+            reason: reason
+        });
     }
 
     closeModal();
@@ -4131,7 +4455,236 @@ function openProcurementReceiptModal(bookingId) {
 }
 
 /* =========================================================
-   19. INITIALIZATION ON DOM LOAD
+   19. REAL-TIME EVENT BUS SUBSCRIPTIONS & SYNC HANDLERS
+========================================================= */
+
+function initKisanSyncListeners() {
+    // -----------------------------------------------------
+    // A. Mandi Officer responds to Farmer Actions
+    // -----------------------------------------------------
+
+    KisanSync.subscribe(KisanEvents.FARMER_SLOT_BOOKED, (payload) => {
+        // Refresh local queue from storage or payload
+        const savedQueue = localStorage.getItem("kisanSetuYardQueue");
+        if (savedQueue) {
+            try { yardQueueData = JSON.parse(savedQueue); } catch(e){}
+        }
+        if (payload && payload.yardEntry) {
+            const exists = yardQueueData.some(f => f.id === payload.yardEntry.id);
+            if (!exists) {
+                yardQueueData.unshift(payload.yardEntry);
+                saveYardQueue();
+            }
+        }
+        const user = getCurrentUser();
+        if (user.role === "officer" || user.role === "admin") {
+            renderOfficerQueueTable();
+            updateOfficerStats();
+            const fName = payload.farmer ? payload.farmer.name : "Farmer";
+            const crop = payload.booking ? payload.booking.crop : "Crop";
+            const token = payload.booking ? payload.booking.token : "--";
+            showToast(`📥 Live Sync: ${fName} booked slot for ${crop} (Token #${token})`, "info");
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.FARMER_SLOT_CANCELLED, (payload) => {
+        const savedQueue = localStorage.getItem("kisanSetuYardQueue");
+        if (savedQueue) {
+            try { yardQueueData = JSON.parse(savedQueue); } catch(e){}
+        }
+        yardQueueData = yardQueueData.filter(f => f.id !== payload.bookingId && f.token !== payload.token && f.farmerId !== payload.farmerId);
+        saveYardQueue();
+
+        const user = getCurrentUser();
+        if (user.role === "officer" || user.role === "admin") {
+            renderOfficerQueueTable();
+            updateOfficerStats();
+            showToast(`⚠️ Live Sync: Farmer cancelled Token #${payload.token} (${payload.reason || "Cancelled"})`, "warning");
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.FARMER_PROCUREMENT_COMPLETED, (payload) => {
+        const savedQueue = localStorage.getItem("kisanSetuYardQueue");
+        if (savedQueue) {
+            try { yardQueueData = JSON.parse(savedQueue); } catch(e){}
+        }
+        const item = yardQueueData.find(f => f.id === payload.bookingId || f.token === payload.token || f.farmerId === payload.farmerId);
+        if (item) {
+            item.stageCode = "completed";
+            item.stage = "Procurement Completed";
+            item.status = "Completed";
+            saveYardQueue();
+        }
+        const user = getCurrentUser();
+        if (user.role === "officer" || user.role === "admin") {
+            renderOfficerQueueTable();
+            updateOfficerStats();
+            showToast(`✅ Live Sync: Token #${payload.token} finalized procurement (${payload.amount || ''})`, "success");
+        }
+    });
+
+    // -----------------------------------------------------
+    // B. Farmer responds to Officer Actions
+    // -----------------------------------------------------
+
+    KisanSync.subscribe(KisanEvents.OFFICER_STAGE_ADVANCED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (payload.id === "KS748291" && user.farmerId === "KS102458")
+        );
+
+        if (isMyToken && currentBooking) {
+            currentBooking.stageCode = payload.stageCode;
+            currentBooking.stage = payload.stage;
+            currentBooking.status = (payload.stageCode === "completed") ? "Completed" : "In Progress";
+            if (payload.moisture) currentBooking.moisture = payload.moisture;
+            saveCurrentBooking();
+
+            const histItem = bookingHistory.find(h => h.id === currentBooking.id);
+            if (histItem) {
+                histItem.status = currentBooking.status;
+                saveBookingHistory();
+            }
+
+            if (user.role !== "officer") {
+                updateDashboardAfterBooking();
+
+                // Add to real-time notification list
+                notificationsList.unshift({
+                    id: Date.now(),
+                    title: `Mandi Stage: ${payload.stage}`,
+                    time: "Just now",
+                    desc: `Your crop intake reached stage: ${payload.stage} (Moisture: ${payload.moisture || "14% Standard"}).`,
+                    icon: getStageIcon(payload.stageCode),
+                    unread: true
+                });
+                updateNotificationBadge();
+
+                if (payload.stageCode === "completed") {
+                    showToast(`🎉 Live Sync: Procurement Completed! ${payload.amount || '₹48,650'} DBT initiated to your bank account.`, "success");
+                } else {
+                    showToast(`🌾 Live Sync: Mandi Officer advanced your crop to ${payload.stage}!`, "success");
+                }
+
+                // If live tracker modal is currently open on screen, update it live in-place!
+                const trackerProgressBar = document.getElementById("trackerProgressBar");
+                const trackerStatusBadge = document.getElementById("trackerStatusBadge");
+                if (trackerProgressBar) {
+                    let pct = 25;
+                    if (payload.stageCode === "gross_weighing") pct = 45;
+                    else if (payload.stageCode === "quality_check") pct = 70;
+                    else if (payload.stageCode === "tare_weighing") pct = 88;
+                    else if (payload.stageCode === "completed") pct = 100;
+                    trackerProgressBar.style.width = pct + "%";
+                    const trackerPctElem = document.getElementById("trackerProgressPercent");
+                    if (trackerPctElem) trackerPctElem.textContent = pct + "% Completed";
+                    if (trackerStatusBadge) {
+                        trackerStatusBadge.textContent = payload.stage;
+                        trackerStatusBadge.className = "status-badge " + (payload.stageCode === "completed" ? "confirmed" : "processing");
+                    }
+                }
+            }
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.OFFICER_TOKEN_CALLED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId) ||
+            (user && user.name && payload.farmerName && user.name.includes(payload.farmerName)) ||
+            (payload.token === "07" && user.farmerId === "KS102458")
+        );
+
+        if (user.role !== "officer" && isMyToken) {
+            // Play audio announcement
+            const lang = localStorage.getItem("kisanSetuLanguage") || "English";
+            let text = `Attention ${user.name}. Token number ${payload.token} is called at Weighbridge Gate 1. Please proceed immediately.`;
+            if (lang === "Telugu") {
+                text = `రైతు ${user.name} గారు, మీ టోకెన్ నంబర్ ${payload.token} గేట్ 1 వద్దకు రండి.`;
+            } else if (lang === "Hindi") {
+                text = `किसान ${user.name} जी, आपका टोकन नंबर ${payload.token} वेईब्रिज गेट 1 पर बुलाया गया है।`;
+            }
+            playVoiceAnnouncement(text, lang);
+
+            showToast(`🔔 YOUR TOKEN #${payload.token} CALLED! Proceed to Weighbridge Gate 1 immediately!`, "warning");
+
+            // Trigger turn ready alert on tracker
+            triggerTurnReadyAlert();
+
+            notificationsList.unshift({
+                id: Date.now(),
+                title: `📢 Gate Call: Token #${payload.token}`,
+                time: "Just now",
+                desc: `Your turn is ready at Weighbridge Gate 1. Please move your vehicle immediately.`,
+                icon: "fa-bullhorn",
+                unread: true
+            });
+            updateNotificationBadge();
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.OFFICER_BROADCAST_SENT, (payload) => {
+        const user = getCurrentUser();
+        if (user.role !== "officer") {
+            showToast(`📢 Mandi Yard Announcement: "${payload.message}"`, "info");
+            notificationsList.unshift({
+                id: Date.now(),
+                title: "📢 Mandi PA Broadcast",
+                time: "Just now",
+                desc: payload.message,
+                icon: "fa-volume-high",
+                unread: true
+            });
+            updateNotificationBadge();
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.OFFICER_SPOT_PASS_ISSUED, (payload) => {
+        const user = getCurrentUser();
+        if (user.role === "officer" || user.role === "admin") {
+            const savedQueue = localStorage.getItem("kisanSetuYardQueue");
+            if (savedQueue) {
+                try { yardQueueData = JSON.parse(savedQueue); } catch(e){}
+            }
+            renderOfficerQueueTable();
+            updateOfficerStats();
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.OFFICER_TOKEN_CANCELLED, (payload) => {
+        const user = getCurrentUser();
+        const isMyToken = currentBooking && (
+            currentBooking.id === payload.id ||
+            currentBooking.token === payload.token ||
+            (user && user.farmerId === payload.farmerId)
+        );
+        if (isMyToken && currentBooking) {
+            currentBooking.status = "Cancelled";
+            saveCurrentBooking();
+            updateDashboardAfterBooking();
+            showToast(`⚠️ Your token #${payload.token} was cancelled by Mandi Officer.`, "error");
+        }
+    });
+
+    KisanSync.subscribe(KisanEvents.OFFICER_QUEUE_RESET, () => {
+        const user = getCurrentUser();
+        loadUserData(user);
+        if (user.role === "officer") {
+            renderOfficerQueueTable();
+            updateOfficerStats();
+        } else {
+            updateDashboardAfterBooking();
+        }
+        showToast("🔄 Live Sync: Queue reset to initial state.", "info");
+    });
+}
+
+/* =========================================================
+   20. INITIALIZATION ON DOM LOAD
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -4140,5 +4693,6 @@ document.addEventListener("DOMContentLoaded", function() {
     applyLanguage(savedLang);
     renderRoleBasedView();
     updateDashboardAfterBooking();
-    console.log("KisanSetu Ready for Hackathon Presentation!");
+    initKisanSyncListeners();
+    console.log("KisanSetu Ready for Hackathon Presentation! Real-Time Sync Active.");
 });

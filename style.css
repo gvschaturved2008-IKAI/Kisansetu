@@ -6681,4 +6681,82 @@ body.admin-portal-active .sidebar .logo-icon {
 .op-btn-reset { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 .op-btn-reset:hover { background: #e2e8f0; }
 
+/* =========================================================
+   REAL-TIME CROSS-ROLE LIVE SYNC INDICATOR
+========================================================= */
+
+.live-sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 13px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #15803d;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.live-sync-indicator .sync-dot-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    position: relative;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+    animation: syncDotPulse 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+@keyframes syncDotPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    }
+}
+
+.live-sync-indicator.synced {
+    background: #dcfce7;
+    border-color: #4ade80;
+    transform: scale(1.06);
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.35);
+}
+
+body.dark-mode .live-sync-indicator {
+    background: #064e3b;
+    border-color: #059669;
+    color: #6ee7b7;
+}
+
+body.admin-portal-active .live-sync-indicator {
+    background: #0f2744;
+    border-color: #1e3a8a;
+    color: #38bdf8;
+}
+
+body.admin-portal-active .live-sync-indicator .sync-dot-pulse {
+    background: #38bdf8;
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+    animation: syncDotPulseAdmin 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+@keyframes syncDotPulseAdmin {
+    0% {
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(56, 189, 248, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+    }
+}
+
 
