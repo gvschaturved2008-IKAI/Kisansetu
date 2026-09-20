@@ -9622,8 +9622,546 @@ body.dark-mode .grade-track {
     background: #24352b;
 }
 
+/* =========================================================
+   TASK 08: INTERACTIVE MANDI YARD MAP & OPERATIONAL LAYOUT
+========================================================= */
 
+.officer-yard-map-card {
+    border-left: 4px solid #0284c7;
+    margin-bottom: 24px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+    border: 1px solid #e2e8f0;
+}
 
+.yard-map-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
 
+.yard-centre-dropdown {
+    padding: 4px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #0369a1;
+    background: #f0f9ff;
+    border: 1.5px solid #bae6fd;
+    border-radius: 8px;
+    cursor: pointer;
+    outline: none;
+}
 
-
+.yard-map-filter-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    overflow-x: auto;
+}
+
+.yard-filter-btn {
+    padding: 5px 12px;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.yard-filter-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.yard-filter-btn.active {
+    background: #0284c7;
+    color: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
+}
+
+.yard-map-body-container {
+    padding: 18px 20px 22px;
+}
+
+/* Operational Flow Summary Indicator */
+.yard-flow-indicator {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin-bottom: 18px;
+    background: #f8fafc;
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+@media (max-width: 900px) {
+    .yard-flow-indicator {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+}
+
+@media (max-width: 540px) {
+    .yard-flow-indicator {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.flow-step-item {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.flow-step-item.has-vehicles {
+    border-color: #93c5fd;
+    background: #f0f9ff;
+}
+
+.flow-step-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.flow-icon-entry { background: #e0f2fe; color: #0284c7; }
+.flow-icon-queue { background: #fef3c7; color: #d97706; }
+.flow-icon-gross { background: #fae8ff; color: #a855f7; }
+.flow-icon-lab { background: #ccfbf1; color: #0f766e; }
+.flow-icon-unload { background: #ffedd5; color: #ea580c; }
+.flow-icon-tare { background: #e0e7ff; color: #4338ca; }
+.flow-icon-exit { background: #dcfce7; color: #16a34a; }
+
+.flow-step-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.flow-step-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.flow-step-count {
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.flow-step-count .count-unit {
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+/* Schematic Yard Map Grid Layout */
+.mandi-yard-map-layout {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+@media (max-width: 1100px) {
+    .mandi-yard-map-layout {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .mandi-yard-map-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.yard-zone-card {
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 180px;
+}
+
+.yard-zone-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    border-color: #38bdf8;
+}
+
+.yard-zone-card.zone-congestion-low {
+    border-top: 3.5px solid #16a34a;
+}
+
+.yard-zone-card.zone-congestion-medium {
+    border-top: 3.5px solid #f59e0b;
+}
+
+.yard-zone-card.zone-congestion-high {
+    border-top: 3.5px solid #ef4444;
+}
+
+.zone-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+}
+
+.zone-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.zone-icon-box {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: #f1f5f9;
+    color: #0369a1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.zone-title-text {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #1e293b;
+    line-height: 1.2;
+}
+
+.zone-subtitle-text {
+    font-size: 10px;
+    color: #64748b;
+    display: block;
+}
+
+.zone-metrics-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    color: #475569;
+    margin: 6px 0 10px;
+}
+
+.zone-active-count {
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.zone-capacity-track {
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.zone-capacity-fill {
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.3s ease;
+}
+
+.zone-vehicle-list {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-content: flex-start;
+}
+
+.yard-vehicle-pill {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+}
+
+.yard-vehicle-pill:hover {
+    transform: scale(1.04);
+}
+
+.veh-stage-gate_in { background: #e0f2fe; color: #0284c7; border-color: #bae6fd; }
+.veh-stage-gross_weighing { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+.veh-stage-quality_check { background: #ccfbf1; color: #0f766e; border-color: #99f6e4; }
+.veh-stage-tare_weighing { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
+.veh-stage-completed { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+
+.yard-vehicle-pill.pulse-active {
+    box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.4);
+    animation: pulseMarker 1.8s infinite;
+}
+
+@keyframes pulseMarker {
+    0% { box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.6); }
+    70% { box-shadow: 0 0 0 6px rgba(2, 132, 199, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(2, 132, 199, 0); }
+}
+
+.zone-empty-hint {
+    font-size: 10.5px;
+    color: #94a3b8;
+    font-style: italic;
+    padding: 6px 0;
+}
+
+/* Map Footer & Controls */
+.yard-map-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 11.5px;
+    color: #64748b;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.yard-legend-inline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.legend-dot-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.dot-green { background: #16a34a; }
+.dot-amber { background: #f59e0b; }
+.dot-teal { background: #0f766e; }
+.dot-purple { background: #7c3aed; }
+.dot-blue { background: #0284c7; }
+
+/* Farmer Journey Map Tracker */
+.farmer-journey-wrapper {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+}
+
+.journey-hero-status {
+    background: linear-gradient(135deg, #065f46, #047857);
+    color: #ffffff;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.journey-step-timeline {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+    position: relative;
+}
+
+@media (max-width: 720px) {
+    .journey-step-timeline {
+        grid-template-columns: 1fr;
+    }
+}
+
+.journey-node {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: center;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.journey-node.completed {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.journey-node.current {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.journey-node.pending {
+    opacity: 0.65;
+}
+
+.node-icon-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin: 0 auto 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.journey-node.completed .node-icon-circle {
+    background: #22c55e;
+    color: #ffffff;
+}
+
+.journey-node.current .node-icon-circle {
+    background: #3b82f6;
+    color: #ffffff;
+    animation: pulseMarker 1.8s infinite;
+}
+
+.node-title {
+    font-size: 11.5px;
+    font-weight: 800;
+    display: block;
+}
+
+.node-sub {
+    font-size: 10px;
+    color: #64748b;
+    margin-top: 2px;
+    display: block;
+}
+
+/* Modals */
+.zone-modal-vehicle-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 10px;
+}
+
+.zone-modal-vehicle-table th {
+    background: #f1f5f9;
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 11px;
+    color: #475569;
+    border-bottom: 1.5px solid #cbd5e1;
+}
+
+.zone-modal-vehicle-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+}
+
+/* Dark Mode for Task 08 */
+body.dark-mode .officer-yard-map-card,
+body.dark-mode .yard-zone-card,
+body.dark-mode .farmer-journey-wrapper {
+    background: #18241d;
+    border-color: #26382e;
+}
+
+body.dark-mode .yard-map-filter-bar,
+body.dark-mode .yard-flow-indicator,
+body.dark-mode .zone-metrics-strip,
+body.dark-mode .journey-node {
+    background: #121a15;
+    border-color: #26382e;
+}
+
+body.dark-mode .yard-filter-btn {
+    background: #18241d;
+    border-color: #26382e;
+    color: #d1e7db;
+}
+
+body.dark-mode .flow-step-item {
+    background: #18241d;
+    border-color: #26382e;
+}
+
+body.dark-mode .flow-step-item.has-vehicles {
+    background: #142820;
+    border-color: #2e5945;
+}
+
+body.dark-mode .zone-title-text,
+body.dark-mode .flow-step-count,
+body.dark-mode .zone-active-count {
+    color: #e2ede6;
+}
+
+body.dark-mode .zone-subtitle-text,
+body.dark-mode .flow-step-label,
+body.dark-mode .node-sub {
+    color: #9eb5a8;
+}
+
+body.dark-mode .zone-icon-box {
+    background: #24352b;
+    color: #38bdf8;
+}

@@ -2607,6 +2607,18 @@ const KisanVani = (function() {
             return "SMART_SLOT";
         }
 
+        // 2.5 Yard Map & Vehicle Location queries (Task 08)
+        if (
+            q.includes("yard map") || q.includes("mandi map") || q.includes("show map") || q.includes("yard location") ||
+            ((q.includes("vehicle") || q.includes("truck") || q.includes("tractor")) && (q.includes("where") || q.includes("zone") || q.includes("location") || q.includes("map"))) ||
+            q.includes("మండీ మ్యాప్") || q.includes("యార్డ్ మ్యాప్") ||
+            ((q.includes("వాహనం") || q.includes("ట్రాక్టర్") || q.includes("బండి")) && (q.includes("ఎక్కడ") || q.includes("జోన్") || q.includes("మ్యాప్"))) ||
+            q.includes("मंडी का नक्शा") || q.includes("यार्ड मैप") || q.includes("नक्शा") ||
+            ((q.includes("गाड़ी") || q.includes("गाड़ी") || q.includes("ट्रैक्टर") || q.includes("वाहन")) && (q.includes("कहाँ") || q.includes("कहा") || q.includes("किधर") || q.includes("जोन") || q.includes("नक्शा") || q.includes("स्थिति")))
+        ) {
+            return "YARD_MAP";
+        }
+
         // 3. Queue Status & Token turn queries
         if (
             q.includes("queue") || q.includes("position") || q.includes("turn") || q.includes("ahead") || q.includes("token") ||
@@ -2715,7 +2727,7 @@ const KisanVani = (function() {
         let lang = rawLang || currentLanguage;
         let ctx = rawCtx;
 
-        const KNOWN_INTENTS = ["QUEUE_STATUS", "QR_HELP", "QUALITY_STATUS", "PAYMENT_STATUS", "GRIEVANCE_HELP", "CENTRE_INFORMATION", "NOTIFICATIONS", "SMART_SLOT", "SLOT_INFORMATION", "BOOKING_STATUS", "GENERAL_HELP", "UNKNOWN"];
+        const KNOWN_INTENTS = ["QUEUE_STATUS", "QR_HELP", "QUALITY_STATUS", "PAYMENT_STATUS", "GRIEVANCE_HELP", "CENTRE_INFORMATION", "NOTIFICATIONS", "SMART_SLOT", "SLOT_INFORMATION", "BOOKING_STATUS", "YARD_MAP", "GENERAL_HELP", "UNKNOWN"];
         if (!KNOWN_INTENTS.includes(intentOrQuery)) {
             query = intentOrQuery;
             lang = rawQueryOrLang || currentLanguage;
@@ -2727,6 +2739,28 @@ const KisanVani = (function() {
         let actions = [];
 
         switch (intent) {
+            case "YARD_MAP":
+                const jData = (typeof KisanYardMap !== "undefined" && typeof KisanYardMap.getFarmerJourney === "function")
+                    ? KisanYardMap.getFarmerJourney(ctx.bookingId || ctx.token)
+                    : { activeZone: { name: "Entry Gate & Security Check", shortName: "Entry Gate" }, queueAhead: 3, waitMins: 18 };
+                
+                const zName = jData.activeZone ? jData.activeZone.name : "Waiting / Queue Area";
+                const qAhead = jData.queueAhead !== undefined ? jData.queueAhead : 3;
+
+                if (lang === "te") {
+                    text = `మీ వాహనం (టోకెన్ #${ctx.token}) ప్రస్తుతం మండీ యార్డ్‌లోని '${zName}' వద్ద ఉంది. మీ కంటే ముందు ${qAhead} వాహనాలు ఉన్నాయి (అంచనా సమయం: ~${jData.waitMins || 18} నిమిషాలు).`;
+                } else if (lang === "hi") {
+                    text = `आपका वाहन (टोकन #${ctx.token}) वर्तमान में मंडी यार्ड के '${zName}' पर स्थित है। आपके आगे ${qAhead} वाहन कतार में हैं (अनुमानित समय: ~${jData.waitMins || 18} मिनट)।`;
+                } else {
+                    text = `Your vehicle (Token #${ctx.token}) is currently located at '${zName}' in the mandi yard. There are ${qAhead} vehicle(s) ahead of you in this flow (approx ~${jData.waitMins || 18} mins wait).`;
+                }
+
+                actions.push({
+                    label: lang === "te" ? "యార్డ్ మ్యాప్ చూడండి" : (lang === "hi" ? "मंडी नक्शा देखें" : "View Live Yard Map"),
+                    onclick: "openFarmerYardMapModal()"
+                });
+                break;
+
             case "QUEUE_STATUS":
                 if (lang === "te") {
                     text = `మీరు ప్రస్తుతం క్యూలో #${ctx.queuePosition} స్థానంలో ఉన్నారు (టోకెన్ #${ctx.token}). మీ కంటే ముందు ${ctx.farmersAhead} మంది రైతులు ఉన్నారు. అంచనా వేసిన సమయం సుమారు ${ctx.estimatedWait}.`;
@@ -4470,11 +4504,824 @@ function renderMandiAnalytics() {
 }
 
 /* =========================================================
+   TASK 08: KISANYARDMAP — INTERACTIVE MANDI YARD MAP & OPERATIONAL FLOW
+   State-Driven Schematic Layout, Clickable Zones, Multi-Centre Support,
+   and Real-Time Vehicle Position Tracking
+========================================================= */
+
+const KisanYardMap = (function() {
+    let currentCentre = "AP State Procurement Centre (Yard 1)";
+    let currentStageFilter = "all";
+
+    const ZONES = [
+        {
+            id: "zone_entry",
+            name: "Entry Gate & Security Check",
+            shortName: "Entry Gate 1 & 2",
+            subtitle: "QR Gate Pass & Security Verification",
+            icon: "fa-door-open",
+            colorClass: "veh-stage-gate_in",
+            iconColor: "#0284c7",
+            standardCapacity: 6,
+            dwellMins: 4,
+            stageMatch: ["gate_in"]
+        },
+        {
+            id: "zone_waiting",
+            name: "Vehicle Holding & Staging Area",
+            shortName: "Waiting Area",
+            subtitle: "Staged Vehicles Waiting for Weighbridge Call",
+            icon: "fa-parking",
+            colorClass: "veh-stage-gate_in",
+            iconColor: "#0284c7",
+            standardCapacity: 8,
+            dwellMins: 12,
+            stageMatch: ["gate_in"]
+        },
+        {
+            id: "zone_queue",
+            name: "Inbound Queue Transit Lane",
+            shortName: "Queue Lane",
+            subtitle: "Tractor & Truck Inbound Queue Order",
+            icon: "fa-truck-ramp-box",
+            colorClass: "veh-stage-gate_in",
+            iconColor: "#d97706",
+            standardCapacity: 6,
+            dwellMins: 8,
+            stageMatch: ["gate_in"]
+        },
+        {
+            id: "zone_gross_weigh",
+            name: "Gross Weighbridge Counters 1 & 2",
+            shortName: "Gross Weighbridge",
+            subtitle: "Full Loaded Vehicle Weighment",
+            icon: "fa-scale-unbalanced",
+            colorClass: "veh-stage-gross_weighing",
+            iconColor: "#a855f7",
+            standardCapacity: 2,
+            dwellMins: 5,
+            stageMatch: ["gross_weighing"]
+        },
+        {
+            id: "zone_quality_lab",
+            name: "AI Quality Testing & Moisture Lab",
+            shortName: "Quality Inspection Lab",
+            subtitle: "Sample Analysis, Moisture Check & Grading",
+            icon: "fa-microscope",
+            colorClass: "veh-stage-quality_check",
+            iconColor: "#0f766e",
+            standardCapacity: 3,
+            dwellMins: 6,
+            stageMatch: ["quality_check"]
+        },
+        {
+            id: "zone_procurement_bays",
+            name: "Grain Unloading & Bagging Bays",
+            shortName: "Unloading Bays 1-4",
+            subtitle: "Godown Storage & Bagging Operations",
+            icon: "fa-truck-loading",
+            colorClass: "veh-stage-tare_weighing",
+            iconColor: "#ea580c",
+            standardCapacity: 6,
+            dwellMins: 15,
+            stageMatch: ["tare_weighing"]
+        },
+        {
+            id: "zone_tare_weigh",
+            name: "Tare (Empty Vehicle) Weighbridge",
+            shortName: "Tare Weighbridge",
+            subtitle: "Empty Vehicle Weighment & Net Calculation",
+            icon: "fa-scale-balanced",
+            colorClass: "veh-stage-tare_weighing",
+            iconColor: "#4338ca",
+            standardCapacity: 2,
+            dwellMins: 4,
+            stageMatch: ["tare_weighing"]
+        },
+        {
+            id: "zone_exit",
+            name: "Exit Clearance & DBT Settlement Gate",
+            shortName: "Exit Gate & DBT",
+            subtitle: "J-Form Delivery & Electronic Gate Release",
+            icon: "fa-circle-check",
+            colorClass: "veh-stage-completed",
+            iconColor: "#16a34a",
+            standardCapacity: 10,
+            dwellMins: 2,
+            stageMatch: ["completed"]
+        }
+    ];
+
+    function normalizeCentreName(centre) {
+        if (!centre) return "AP State Procurement Centre (Yard 1)";
+        if (typeof centre !== "string") centre = centre.name || String(centre);
+        if (centre.includes("District Food Grain") || centre.includes("Yard 2")) {
+            return "District Food Grain Hub (Yard 2)";
+        }
+        return "AP State Procurement Centre (Yard 1)";
+    }
+
+    function getYardState(centre = currentCentre) {
+        const normCentre = normalizeCentreName(centre);
+        let queue = (typeof yardQueueData !== "undefined" && Array.isArray(yardQueueData)) ? yardQueueData : [];
+        let cur = (typeof currentBooking !== "undefined" && currentBooking) ? currentBooking : null;
+
+        // Build list of active lots
+        const allLots = [];
+        const seenTokens = new Set();
+
+        queue.forEach(f => {
+            if (f && f.token && !seenTokens.has(f.token)) {
+                seenTokens.add(f.token);
+                allLots.push({
+                    id: f.id,
+                    token: f.token,
+                    farmerId: f.farmerId || "KS102458",
+                    farmerName: f.farmerName || "Farmer",
+                    crop: f.crop || "Paddy / Rice",
+                    quantity: f.quantity || 20.0,
+                    vehicleNo: f.vehicleNo || "AP-07-TY-4920",
+                    vehicleType: f.vehicleType || "Tractor Trolley",
+                    stageCode: f.stageCode || "gate_in",
+                    stage: f.stage || "Gate In (Waiting)",
+                    moisture: f.moisture || "Pending",
+                    amount: f.amount || "₹46,000",
+                    status: f.status || "In Queue"
+                });
+            }
+        });
+
+        if (cur && cur.token && !seenTokens.has(cur.token)) {
+            allLots.unshift({
+                id: cur.id,
+                token: cur.token,
+                farmerId: (typeof getCurrentUser === "function" && getCurrentUser() && getCurrentUser().farmerId) || "KS102458",
+                farmerName: (typeof getCurrentUser === "function" && getCurrentUser() && getCurrentUser().name) || "Ramesh Kumar",
+                crop: cur.crop || "Paddy / Rice",
+                quantity: cur.quantity || 21.5,
+                vehicleNo: cur.vehicleNo || "AP-07-TY-4920",
+                vehicleType: cur.vehicleType || "Tractor Trolley",
+                stageCode: cur.stageCode || "gate_in",
+                stage: cur.stage || "Gate In (Waiting)",
+                moisture: cur.moisture || "Pending",
+                amount: cur.amount || "₹48,650",
+                status: cur.status || "In Queue"
+            });
+        }
+
+        // Map lots into 8 zones
+        const zoneMap = {};
+        ZONES.forEach(z => {
+            zoneMap[z.id] = {
+                ...z,
+                vehicles: []
+            };
+        });
+
+        // Distribution logic for vehicles
+        const gateInLots = allLots.filter(l => l.stageCode === "gate_in");
+        gateInLots.forEach((lot, idx) => {
+            if (idx === 0) {
+                zoneMap["zone_entry"].vehicles.push(lot);
+            } else if (idx === 1) {
+                zoneMap["zone_waiting"].vehicles.push(lot);
+            } else {
+                zoneMap["zone_queue"].vehicles.push(lot);
+            }
+        });
+
+        allLots.filter(l => l.stageCode === "gross_weighing").forEach(l => {
+            zoneMap["zone_gross_weigh"].vehicles.push(l);
+        });
+
+        allLots.filter(l => l.stageCode === "quality_check").forEach(l => {
+            zoneMap["zone_quality_lab"].vehicles.push(l);
+        });
+
+        const tareLots = allLots.filter(l => l.stageCode === "tare_weighing");
+        tareLots.forEach((lot, idx) => {
+            if (idx % 2 === 0) {
+                zoneMap["zone_procurement_bays"].vehicles.push(lot);
+            } else {
+                zoneMap["zone_tare_weigh"].vehicles.push(lot);
+            }
+        });
+
+        allLots.filter(l => l.stageCode === "completed").forEach(l => {
+            zoneMap["zone_exit"].vehicles.push(l);
+        });
+
+        return {
+            centre: normCentre,
+            zones: zoneMap,
+            allVehicles: allLots,
+            activeCount: allLots.filter(l => l.stageCode !== "completed").length,
+            completedCount: allLots.filter(l => l.stageCode === "completed").length + 18
+        };
+    }
+
+    function getZoneStatus(zoneId, centre = currentCentre) {
+        const state = getYardState(centre);
+        const zone = state.zones[zoneId] || ZONES.find(z => z.id === zoneId) || ZONES[0];
+        const vehicles = zone.vehicles || [];
+        const count = vehicles.length;
+        const cap = zone.standardCapacity || 6;
+        const utilPct = Math.min(100, Math.round((count / cap) * 100));
+
+        let congestion = "LOW";
+        let congestionClass = "congestion-pill-low";
+        if (utilPct >= 75 || count >= 5) {
+            congestion = "HIGH";
+            congestionClass = "congestion-pill-high";
+        } else if (utilPct >= 40 || count >= 2) {
+            congestion = "MEDIUM";
+            congestionClass = "congestion-pill-med";
+        }
+
+        const estWaitMins = Math.max(2, count * (zone.dwellMins || 5));
+
+        return {
+            zoneId,
+            name: zone.name,
+            shortName: zone.shortName,
+            subtitle: zone.subtitle,
+            icon: zone.icon,
+            iconColor: zone.iconColor,
+            count,
+            capacity: cap,
+            utilPct,
+            congestion,
+            congestionClass,
+            estWaitMins,
+            vehicles
+        };
+    }
+
+    function getStageCounts(centre = currentCentre) {
+        const state = getYardState(centre);
+        const z = state.zones;
+
+        return [
+            { id: "entry", label: "Entry Gate", count: z.zone_entry.vehicles.length, icon: "fa-door-open", colorClass: "flow-icon-entry" },
+            { id: "queue", label: "Waiting / Queue", count: z.zone_waiting.vehicles.length + z.zone_queue.vehicles.length, icon: "fa-truck-ramp-box", colorClass: "flow-icon-queue" },
+            { id: "gross", label: "Gross Weigh", count: z.zone_gross_weigh.vehicles.length, icon: "fa-scale-unbalanced", colorClass: "flow-icon-gross" },
+            { id: "quality", label: "Quality Lab", count: z.zone_quality_lab.vehicles.length, icon: "fa-microscope", colorClass: "flow-icon-lab" },
+            { id: "unload", label: "Unloading Bays", count: z.zone_procurement_bays.vehicles.length, icon: "fa-truck-loading", colorClass: "flow-icon-unload" },
+            { id: "tare", label: "Tare Weigh", count: z.zone_tare_weigh.vehicles.length, icon: "fa-scale-balanced", colorClass: "flow-icon-tare" },
+            { id: "exit", label: "Exit / DBT", count: z.zone_exit.vehicles.length + 18, icon: "fa-circle-check", colorClass: "flow-icon-exit" }
+        ];
+    }
+
+    function getFarmerJourney(bookingOrTokenId) {
+        const user = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+        let b = (typeof currentBooking !== "undefined" && currentBooking) ? currentBooking : null;
+
+        if (bookingOrTokenId) {
+            const state = getYardState();
+            const found = state.allVehicles.find(v => v.id === bookingOrTokenId || v.token === bookingOrTokenId || v.farmerId === bookingOrTokenId);
+            if (found) b = found;
+        }
+
+        const stageCode = (b && b.stageCode) ? b.stageCode : "gate_in";
+        const token = (b && b.token) ? b.token : "07";
+
+        const STAGES = [
+            { id: "gate_in", name: "Entry & Security", zone: "Entry Gate / Staging Area", desc: "Digital QR gate pass verified at gate", icon: "fa-door-open" },
+            { id: "gross_weighing", name: "Gross Weighbridge", zone: "Weighbridge 1 & 2", desc: "Vehicle weighed with grain payload", icon: "fa-scale-unbalanced" },
+            { id: "quality_check", name: "Quality Inspection Lab", zone: "AI Grain Testing Centre", desc: "Moisture & DoCA FAQ standard grading", icon: "fa-microscope" },
+            { id: "tare_weighing", name: "Unloading & Tare", zone: "Bays 1-4 & Empty Weigh", desc: "Grain unloaded & empty vehicle weighed", icon: "fa-scale-balanced" },
+            { id: "completed", name: "DBT Payment & Exit", zone: "Exit Gate & PFMS Clearing", desc: "J-Form generated & direct payment credited", icon: "fa-circle-check" }
+        ];
+
+        let currentIndex = 0;
+        if (stageCode === "gross_weighing") currentIndex = 1;
+        else if (stageCode === "quality_check") currentIndex = 2;
+        else if (stageCode === "tare_weighing") currentIndex = 3;
+        else if (stageCode === "completed") currentIndex = 4;
+
+        const activeZoneObj = ZONES.find(z => z.stageMatch.includes(stageCode)) || ZONES[0];
+        const state = getYardState();
+        const activeLots = state.allVehicles.filter(v => v.stageCode !== "completed");
+        const myIndex = activeLots.findIndex(v => v.token === token || v.id === (b ? b.id : ""));
+        const queueAhead = myIndex >= 0 ? myIndex : Math.max(0, activeLots.length - 1);
+        const waitMins = Math.max(5, (queueAhead + 1) * 6);
+
+        return {
+            farmerName: (user && user.name) || "Ramesh Kumar",
+            farmerId: (user && user.farmerId) || "KS102458",
+            token: token,
+            crop: (b && b.crop) || "Paddy / Rice",
+            stageCode,
+            activeZone: activeZoneObj,
+            currentIndex,
+            stages: STAGES,
+            queueAhead,
+            waitMins,
+            isCompleted: stageCode === "completed"
+        };
+    }
+
+    function switchCentre(centreName) {
+        currentCentre = normalizeCentreName(centreName);
+        renderOfficerYardMap();
+    }
+
+    function filterStage(stageCode) {
+        currentStageFilter = stageCode;
+        document.querySelectorAll(".yard-filter-btn").forEach(btn => {
+            if (btn.getAttribute("data-stage") === stageCode) {
+                btn.classList.add("active");
+            } else {
+                btn.classList.remove("active");
+            }
+        });
+        renderOfficerYardMap();
+    }
+
+    function renderOfficerYardMap(targetId = "officer-yard-map-target", centre = currentCentre, stageFilter = currentStageFilter) {
+        const target = document.getElementById(targetId);
+        if (!target) return;
+
+        const state = getYardState(centre);
+        const flowCounts = getStageCounts(centre);
+
+        let filteredZones = ZONES;
+        if (stageFilter && stageFilter !== "all") {
+            filteredZones = ZONES.filter(z => z.stageMatch.includes(stageFilter));
+        }
+
+        let html = `
+            <!-- Live Operational Flow Summary -->
+            <div class="yard-flow-indicator">
+                ${flowCounts.map(fc => `
+                    <div class="flow-step-item ${fc.count > 0 ? 'has-vehicles' : ''}">
+                        <div class="flow-step-icon ${fc.colorClass}">
+                            <i class="fa-solid ${fc.icon}"></i>
+                        </div>
+                        <div class="flow-step-info">
+                            <span class="flow-step-label">${fc.label}</span>
+                            <div class="flow-step-count">
+                                ${fc.count} <span class="count-unit">lots</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join("")}
+            </div>
+
+            <!-- Schematic Mandi Yard Layout Grid -->
+            <div class="mandi-yard-map-layout">
+                ${filteredZones.map(z => {
+                    const status = getZoneStatus(z.id, centre);
+                    const vehs = status.vehicles;
+                    let capFillClass = status.congestion === "LOW" ? "grade-fill-a-plus" : (status.congestion === "MEDIUM" ? "grade-fill-b" : "grade-fill-rej");
+
+                    return `
+                        <div class="yard-zone-card zone-congestion-${status.congestion.toLowerCase()}" onclick="KisanYardMap.openZoneDetailModal('${z.id}')" title="Click to inspect ${z.name}">
+                            <div class="zone-header-row">
+                                <div class="zone-title-wrap">
+                                    <div class="zone-icon-box" style="color:${z.iconColor};">
+                                        <i class="fa-solid ${z.icon}"></i>
+                                    </div>
+                                    <div>
+                                        <span class="zone-title-text">${z.shortName}</span>
+                                        <span class="zone-subtitle-text">${z.subtitle}</span>
+                                    </div>
+                                </div>
+                                <span class="congestion-pill ${status.congestionClass}" style="font-size:9.5px; padding:1px 6px;">
+                                    ${status.congestion}
+                                </span>
+                            </div>
+
+                            <div class="zone-metrics-strip">
+                                <span><i class="fa-solid fa-truck"></i> <strong>${status.count}</strong> / ${status.capacity} Capacity</span>
+                                <span><i class="fa-solid fa-clock"></i> ~${status.estWaitMins}m dwell</span>
+                            </div>
+
+                            <div class="zone-capacity-track">
+                                <div class="zone-capacity-fill ${capFillClass}" style="width:${Math.max(4, status.utilPct)}%"></div>
+                            </div>
+
+                            <div class="zone-vehicle-list">
+                                ${vehs.length > 0 ? vehs.map(v => `
+                                    <span class="yard-vehicle-pill ${z.colorClass} ${v.token === '07' ? 'pulse-active' : ''}" onclick="event.stopPropagation(); KisanYardMap.openVehicleDetailModal('${v.token}')" title="Token #${v.token} (${v.farmerName}, ${v.crop})">
+                                        <i class="fa-solid fa-truck"></i> #${v.token}
+                                    </span>
+                                `).join("") : `
+                                    <span class="zone-empty-hint"><i class="fa-solid fa-check"></i> Zone Free • Ready for Intake</span>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                }).join("")}
+            </div>
+
+            <!-- Yard Map Footer Legend & Meta -->
+            <div class="yard-map-footer">
+                <div class="yard-legend-inline">
+                    <span class="legend-dot-item"><span class="legend-dot dot-blue"></span> Gate & Queue</span>
+                    <span class="legend-dot-item"><span class="legend-dot dot-amber"></span> Gross Weigh</span>
+                    <span class="legend-dot-item"><span class="legend-dot dot-teal"></span> Quality Lab</span>
+                    <span class="legend-dot-item"><span class="legend-dot dot-purple"></span> Unload & Tare</span>
+                    <span class="legend-dot-item"><span class="legend-dot dot-green"></span> Completed / Exit</span>
+                </div>
+                <div style="font-size:11px; color:#64748b;">
+                    <i class="fa-solid fa-circle-info"></i> Click any zone or vehicle marker for real-time operational inspection
+                </div>
+            </div>
+        `;
+
+        target.innerHTML = html;
+    }
+
+    function openZoneDetailModal(zoneId) {
+        const z = getZoneStatus(zoneId);
+        const vehs = z.vehicles;
+
+        const content = `
+            <div class="zone-inspector-modal">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid #e2e8f0;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="width:38px; height:38px; border-radius:10px; background:#f0fdf4; color:#166534; display:flex; align-items:center; justify-content:center; font-size:18px;">
+                            <i class="fa-solid ${z.icon}"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin:0; font-size:16px; color:#1e293b;">${z.name}</h3>
+                            <span style="font-size:11.5px; color:#64748b;">${z.subtitle}</span>
+                        </div>
+                    </div>
+                    <span class="congestion-pill ${z.congestionClass}">${z.congestion} LOAD</span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px; background:#f8fafc; padding:12px; border-radius:10px;">
+                    <div>
+                        <span style="font-size:10.5px; color:#64748b; display:block;">ACTIVE VEHICLES</span>
+                        <strong style="font-size:17px; color:#0f172a;">${z.count} <span style="font-size:12px; font-weight:600; color:#64748b;">/ ${z.capacity} Max</span></strong>
+                    </div>
+                    <div>
+                        <span style="font-size:10.5px; color:#64748b; display:block;">EST. DWELL TIME</span>
+                        <strong style="font-size:17px; color:#0369a1;">~${z.estWaitMins} mins</strong>
+                    </div>
+                    <div>
+                        <span style="font-size:10.5px; color:#64748b; display:block;">UTILIZATION</span>
+                        <strong style="font-size:17px; color:#16a34a;">${z.utilPct}%</strong>
+                    </div>
+                </div>
+
+                <h4 style="font-size:13px; color:#334155; margin:0 0 8px;"><i class="fa-solid fa-list-ol"></i> Vehicles Currently in this Zone</h4>
+                
+                ${vehs.length > 0 ? `
+                    <table class="zone-modal-vehicle-table">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Farmer</th>
+                                <th>Crop & Quantity</th>
+                                <th>Vehicle</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${vehs.map(v => `
+                                <tr>
+                                    <td><strong style="color:#0f766e;">#${v.token}</strong></td>
+                                    <td>${v.farmerName}</td>
+                                    <td>${v.crop} (${v.quantity} Q)</td>
+                                    <td>${v.vehicleNo}</td>
+                                    <td><span class="stage-chip ${z.colorClass}" style="font-size:10px; padding:2px 6px;">${v.stage}</span></td>
+                                    <td>
+                                        <button type="button" class="scanner-demo-chip" style="margin:0; padding:3px 8px; font-size:10px;" onclick="closeModal(); KisanYardMap.openVehicleDetailModal('${v.token}')">
+                                            Inspect
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                ` : `
+                    <div style="text-align:center; padding:20px; color:#94a3b8; font-size:12px;">
+                        <i class="fa-solid fa-circle-check" style="font-size:24px; color:#22c55e; margin-bottom:6px; display:block;"></i>
+                        No backlog in this zone. Weighbridge & operator ready for next token.
+                    </div>
+                `}
+
+                <div style="display:flex; gap:10px; margin-top:16px;">
+                    <button type="button" class="submit-auth-btn" style="flex:1;" onclick="closeModal()">
+                        Close
+                    </button>
+                    ${z.zoneId === 'zone_gross_weigh' || z.zoneId === 'zone_entry' ? `
+                        <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="closeModal(); officerAdvanceNextQueue()">
+                            <i class="fa-solid fa-bullhorn"></i> Call Next Token
+                        </button>
+                    ` : (z.zoneId === 'zone_quality_lab' ? `
+                        <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="closeModal(); openQualityInspectionModal()">
+                            <i class="fa-solid fa-microscope"></i> Open AI Lab Inspector
+                        </button>
+                    ` : `
+                        <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="closeModal(); renderOfficerYardMap()">
+                            <i class="fa-solid fa-arrows-rotate"></i> Refresh Zone
+                        </button>
+                    `)}
+                </div>
+            </div>
+        `;
+
+        openModal(`Mandi Zone Inspector: ${z.shortName}`, content);
+    }
+
+    function openVehicleDetailModal(tokenId) {
+        const state = getYardState();
+        const v = state.allVehicles.find(item => item.token === tokenId || item.id === tokenId) || state.allVehicles[0] || {
+            token: tokenId || "07",
+            farmerName: "Ramesh Kumar",
+            farmerId: "KS102458",
+            id: "KS748291",
+            crop: "Paddy / Rice (Grade A)",
+            quantity: 21.5,
+            vehicleNo: "AP-07-TY-4920",
+            vehicleType: "Tractor Trolley",
+            stage: "Gate In (Waiting)",
+            moisture: "Pending",
+            amount: "₹49,450",
+            status: "In Queue"
+        };
+
+        const activeZone = ZONES.find(z => z.stageMatch.includes(v.stageCode)) || ZONES[0];
+
+        const content = `
+            <div class="vehicle-inspector-modal">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid #e2e8f0;">
+                    <div>
+                        <span style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;">DIGITAL YARD TOKEN</span>
+                        <h2 style="font-size:28px; margin:0; color:#166534; font-family:'Nunito', sans-serif;">Token #${v.token}</h2>
+                    </div>
+                    <span class="status-badge ${v.stageCode === 'completed' ? 'confirmed' : 'waiting'}" style="font-size:12px; padding:6px 12px;">
+                        ${v.stage}
+                    </span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:12px; margin-bottom:14px;">
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <span style="color:#64748b; font-size:10px; display:block;">FARMER PARTICULARS</span>
+                        <strong style="color:#1e293b; font-size:13px;">${v.farmerName}</strong><br>
+                        <span style="color:#475569;">ID: ${v.farmerId}</span>
+                    </div>
+
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <span style="color:#64748b; font-size:10px; display:block;">VEHICLE & GATE PASS</span>
+                        <strong style="color:#1e293b; font-size:13px;">${v.vehicleNo}</strong><br>
+                        <span style="color:#475569;">${v.vehicleType} • Pass: ${v.id}</span>
+                    </div>
+                </div>
+
+                <table class="verification-details-table" style="font-size:12px; margin-bottom:16px;">
+                    <tr>
+                        <td>Current Mandi Zone:</td>
+                        <td><strong style="color:#0284c7;"><i class="fa-solid ${activeZone.icon}"></i> ${activeZone.name}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Crop Commodity:</td>
+                        <td><strong>${v.crop}</strong> (${v.quantity} Quintals)</td>
+                    </tr>
+                    <tr>
+                        <td>Moisture / Quality Grade:</td>
+                        <td><strong style="color:#166534;">${v.moisture || 'Pending Laboratory Evaluation'}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Govt MSP Settlement Value:</td>
+                        <td><strong style="color:#16a34a; font-size:13px;">${v.amount || '₹49,450'}</strong></td>
+                    </tr>
+                </table>
+
+                <div style="display:flex; gap:10px;">
+                    <button type="button" class="submit-auth-btn" style="flex:1;" onclick="closeModal()">
+                        Close
+                    </button>
+                    <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="closeModal(); officerCallFarmerToken('${v.token}', '${v.farmerName}')">
+                        <i class="fa-solid fa-bullhorn"></i> Loudspeaker Call
+                    </button>
+                </div>
+            </div>
+        `;
+
+        openModal(`Vehicle Lot Inspection • Token #${v.token}`, content);
+    }
+
+    function renderFarmerYardMap(targetId = "farmer-yard-map-target") {
+        const j = getFarmerJourney();
+        const target = document.getElementById(targetId);
+        if (!target) return;
+
+        let html = `
+            <div class="farmer-journey-wrapper">
+                <!-- Status Hero -->
+                <div class="journey-hero-status">
+                    <div>
+                        <span style="font-size:11px; text-transform:uppercase; letter-spacing:1px; opacity:0.9;">MY MANDI YARD POSITION</span>
+                        <h3 style="font-size:18px; margin:2px 0 0;">Token #${j.token} • ${j.activeZone.name}</h3>
+                        <p style="margin:3px 0 0; font-size:11.5px; opacity:0.85;">
+                            ${j.isCompleted ? '✓ Procurement completed. Electronic J-Form issued.' : `You have ${j.queueAhead} vehicle(s) ahead in this zone (~${j.waitMins}m wait).`}
+                        </p>
+                    </div>
+                    <div style="text-align:right;">
+                        <span class="status-badge ${j.isCompleted ? 'confirmed' : 'waiting'}" style="background:#ffffff; color:#065f46; font-weight:800; font-size:12px; padding:6px 14px;">
+                            ${j.isCompleted ? 'Completed' : 'Active In Yard'}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Step-by-Step Interactive Flow Timeline -->
+                <div class="journey-step-timeline">
+                    ${j.stages.map((st, idx) => {
+                        let statusClass = "pending";
+                        if (idx < j.currentIndex) statusClass = "completed";
+                        else if (idx === j.currentIndex) statusClass = "current";
+
+                        return `
+                            <div class="journey-node ${statusClass}">
+                                <div class="node-icon-circle">
+                                    <i class="fa-solid ${idx < j.currentIndex ? 'fa-check' : st.icon}"></i>
+                                </div>
+                                <span class="node-title">${st.name}</span>
+                                <span class="node-sub">${st.zone}</span>
+                            </div>
+                        `;
+                    }).join("")}
+                </div>
+
+                <!-- Navigation Guidance Box -->
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; font-size:12px; color:#334155; display:flex; align-items:center; gap:12px;">
+                    <i class="fa-solid fa-map-pin" style="font-size:20px; color:#0284c7;"></i>
+                    <div style="flex:1;">
+                        <strong>Next Step in Yard Flow:</strong>
+                        <span style="color:#64748b; display:block; font-size:11.5px;">
+                            ${j.currentIndex === 0 ? 'Proceed through Gate 1 optical scanner towards Gross Weighbridge.' : (j.currentIndex === 1 ? 'Move vehicle onto Gross Weighbridge platform.' : (j.currentIndex === 2 ? 'Submit grain sample to AI Testing Lab for moisture check.' : (j.currentIndex === 3 ? 'Unload grain at Bay 2 and proceed to Tare Weighbridge.' : 'Collect digital J-Form receipt and exit.')))}
+                        </span>
+                    </div>
+                    <button type="button" class="primary-button" style="padding:6px 14px; font-size:11px;" onclick="closeModal(); openTracker();">
+                        <i class="fa-solid fa-stopwatch"></i> Live Tracker
+                    </button>
+                </div>
+            </div>
+        `;
+
+        target.innerHTML = html;
+    }
+
+    function openFarmerYardMapModal() {
+        const content = `
+            <div id="farmer-yard-map-modal-target">
+                <!-- Rendered dynamically -->
+            </div>
+            <div style="display:flex; gap:10px; margin-top:14px;">
+                <button type="button" class="submit-auth-btn" style="flex:1;" onclick="closeModal()">
+                    Close Map
+                </button>
+                <button type="button" class="submit-auth-btn register-btn" style="flex:1;" onclick="closeModal(); openFarmerQRModal()">
+                    <i class="fa-solid fa-qrcode"></i> Show Gate Pass QR
+                </button>
+            </div>
+        `;
+
+        openModal("🌾 My Mandi Journey & Live Yard Tracker", content);
+
+        setTimeout(() => {
+            renderFarmerYardMap("farmer-yard-map-modal-target");
+        }, 80);
+    }
+
+    function openLegendModal() {
+        const content = `
+            <div style="font-size:12.5px; color:#334155;">
+                <p style="margin-top:0; color:#64748b;">The Kisan Setu Interactive Mandi Map provides real-time schematic tracking of procurement operations across all physical yard zones.</p>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;">
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <strong style="color:#0284c7;"><i class="fa-solid fa-door-open"></i> 1. Entry & Security Gate</strong>
+                        <span style="display:block; font-size:11px; color:#64748b; margin-top:2px;">Dynamic QR code gate pass verification and arrival check-in.</span>
+                    </div>
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <strong style="color:#a855f7;"><i class="fa-solid fa-scale-unbalanced"></i> 2. Gross Weighbridge</strong>
+                        <span style="display:block; font-size:11px; color:#64748b; margin-top:2px;">Gross weighment of loaded tractor/truck with grain payload.</span>
+                    </div>
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <strong style="color:#0f766e;"><i class="fa-solid fa-microscope"></i> 3. AI Quality Testing Lab</strong>
+                        <span style="display:block; font-size:11px; color:#64748b; margin-top:2px;">Digital moisture testing and AI-assisted DoCA FAQ grading.</span>
+                    </div>
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <strong style="color:#ea580c;"><i class="fa-solid fa-truck-loading"></i> 4. Unloading & Bagging Bays</strong>
+                        <span style="display:block; font-size:11px; color:#64748b; margin-top:2px;">Physical intake into godowns/silos and standard bagging.</span>
+                    </div>
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <strong style="color:#4338ca;"><i class="fa-solid fa-scale-balanced"></i> 5. Tare Weighbridge</strong>
+                        <span style="display:block; font-size:11px; color:#64748b; margin-top:2px;">Empty vehicle weighing to calculate net procured weight.</span>
+                    </div>
+                    <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <strong style="color:#16a34a;"><i class="fa-solid fa-circle-check"></i> 6. Exit Clearance & DBT</strong>
+                        <span style="display:block; font-size:11px; color:#64748b; margin-top:2px;">Electronic J-Form receipt delivery and DBT payment credit.</span>
+                    </div>
+                </div>
+
+                <h4 style="margin:12px 0 6px; font-size:13px;"><i class="fa-solid fa-gauge-high"></i> Congestion Indicators</h4>
+                <div style="display:flex; gap:10px; font-size:11px;">
+                    <span class="congestion-pill congestion-pill-low">LOW LOAD (&lt; 40% capacity)</span>
+                    <span class="congestion-pill congestion-pill-med">MEDIUM LOAD (40-74% capacity)</span>
+                    <span class="congestion-pill congestion-pill-high">HIGH BOTTLEPEND (&ge; 75% capacity)</span>
+                </div>
+
+                <div style="margin-top:16px;">
+                    <button type="button" class="submit-auth-btn" style="width:100%;" onclick="closeModal()">
+                        Understood
+                    </button>
+                </div>
+            </div>
+        `;
+
+        openModal("Mandi Yard Map Schematic Legend", content);
+    }
+
+    function initListeners() {
+        if (typeof KisanSync !== "undefined" && typeof KisanSync.subscribe === "function") {
+            const eventsToListen = [
+                KisanEvents.FARMER_SLOT_BOOKED,
+                KisanEvents.FARMER_SLOT_CANCELLED,
+                KisanEvents.QR_VERIFIED,
+                KisanEvents.FARMER_CHECK_IN,
+                KisanEvents.FARMER_QUEUE_UPDATED,
+                KisanEvents.QUALITY_INSPECTION_STARTED,
+                KisanEvents.QUALITY_ASSESSMENT_COMPLETED,
+                KisanEvents.QUALITY_APPROVED,
+                KisanEvents.QUALITY_ON_HOLD,
+                KisanEvents.QUALITY_REJECTED,
+                KisanEvents.PROCUREMENT_COMPLETED,
+                KisanEvents.PAYMENT_UPDATED,
+                KisanEvents.OFFICER_STAGE_ADVANCED,
+                KisanEvents.OFFICER_SPOT_PASS_ISSUED,
+                KisanEvents.OFFICER_TOKEN_CALLED,
+                KisanEvents.OFFICER_TOKEN_CANCELLED,
+                KisanEvents.OFFICER_QUEUE_RESET
+            ];
+
+            eventsToListen.forEach(evt => {
+                KisanSync.subscribe(evt, () => {
+                    renderOfficerYardMap();
+                    const farmerTarget = document.getElementById("farmer-yard-map-modal-target");
+                    if (farmerTarget) renderFarmerYardMap("farmer-yard-map-modal-target");
+                });
+            });
+        }
+    }
+
+    return {
+        ZONES,
+        getYardState,
+        getZoneStatus,
+        getStageCounts,
+        getFarmerJourney,
+        renderOfficerYardMap,
+        renderFarmerYardMap,
+        openZoneDetailModal,
+        openVehicleDetailModal,
+        openFarmerYardMapModal,
+        openLegendModal,
+        switchCentre,
+        filterStage,
+        initListeners
+    };
+})();
+
+// Global accessible wrappers for Task 08
+function openFarmerYardMapModal() {
+    KisanYardMap.openFarmerYardMapModal();
+}
+
+function openZoneDetailModal(zoneId) {
+    KisanYardMap.openZoneDetailModal(zoneId);
+}
+
+function openVehicleDetailModal(tokenId) {
+    KisanYardMap.openVehicleDetailModal(tokenId);
+}
+
+/* =========================================================
    1. MULTI-LANGUAGE TRANSLATION DICTIONARIES
 ========================================================= */
 
 const translations = {
     English: {
+        yardMapNav: "Mandi Yard Map",
+        navYardMap: "Mandi Yard Map",
+        mandiYardMapBtn: "Live Yard Map",
+        yardMapSectionTitle: "Live Interactive Mandi Yard Map & Flow Controller",
+        yardMapSectionDesc: "Real-time schematic operational tracking of vehicles across 8 mandi zones from Gate Entry to DBT Settlement.",
+        refreshMapBtn: "Refresh Map",
+        mapLegendBtn: "Yard Legend",
+        filterAllZones: "All 8 Zones",
+        filterEntryQueue: "Entry & Queue",
+        filterGrossWeigh: "Gross Weighbridge",
+        filterQualityLab: "Quality Lab",
+        filterUnloadTare: "Unloading & Tare",
+        filterExitClearance: "Exit & DBT",
         navLiveAnalytics: "Live Analytics",
         mandiAnalyticsBtn: "Live Analytics",
         analyticsDashboardTitle: "Live Mandi Analytics & Procurement Operations",
@@ -4769,6 +5616,19 @@ const translations = {
         cancelBtn: "Cancel"
     },
     Hindi: {
+        yardMapNav: "मंडी यार्ड मानचित्र",
+        navYardMap: "मंडी यार्ड मानचित्र",
+        mandiYardMapBtn: "लाइव यार्ड मैप",
+        yardMapSectionTitle: "लाइव इंटरएक्टिव मंडी यार्ड मैप एवं प्रवाह नियंत्रक",
+        yardMapSectionDesc: "गेट प्रवेश से लेकर डीबीटी निपटान तक 8 मंडी क्षेत्रों में वाहनों की वास्तविक समय निगरानी।",
+        refreshMapBtn: "नक्शा ताज़ा करें",
+        mapLegendBtn: "यार्ड संकेत",
+        filterAllZones: "सभी 8 क्षेत्र",
+        filterEntryQueue: "प्रवेश एवं कतार",
+        filterGrossWeigh: "सकल वजन कांटा",
+        filterQualityLab: "गुणवत्ता प्रयोगशाला",
+        filterUnloadTare: "अनलोडिंग एवं खाली वजन",
+        filterExitClearance: "निकासी एवं डीबीटी",
         navLiveAnalytics: "लाइव एनालिटिक्स",
         mandiAnalyticsBtn: "लाइव एनालिटिक्स",
         analyticsDashboardTitle: "लाइव मंडी एनालिटिक्स एवं खरीद संचालन",
@@ -5056,6 +5916,19 @@ const translations = {
         cancelBtn: "रद्द करें"
     },
     Telugu: {
+        yardMapNav: "మార్కెట్ యార్డ్ మ్యాప్",
+        navYardMap: "మార్కెట్ యార్డ్ మ్యాప్",
+        mandiYardMapBtn: "లైవ్ యార్డ్ మ్యాప్",
+        yardMapSectionTitle: "ప్రత్యక్ష ఇంటరాక్టివ్ మార్కెట్ యార్డ్ మ్యాప్ & ఫ్లో కంట్రోలర్",
+        yardMapSectionDesc: "గేట్ ఎంట్రీ నుండి DBT క్లియరెన్స్ వరకు 8 మార్కెట్ జోన్లలో వాహనాల రియల్-టైమ్ ఆపరేషనల్ ట్రాకింగ్.",
+        refreshMapBtn: "మ్యాప్ రిఫ్రెష్",
+        mapLegendBtn: "యార్డ్ సూచిక",
+        filterAllZones: "అన్ని 8 జోన్లు",
+        filterEntryQueue: "ఎంట్రీ & క్యూ",
+        filterGrossWeigh: "స్థూల తూకం",
+        filterQualityLab: "నాణ్యత ల్యాబ్",
+        filterUnloadTare: "అన్‌లోడింగ్ & ఖాళీ తూకం",
+        filterExitClearance: "నిష్క్రమణ & DBT",
         navLiveAnalytics: "లైవ్ అనలిటిక్స్",
         mandiAnalyticsBtn: "లైవ్ అనలిటిక్స్",
         analyticsDashboardTitle: "ప్రత్యక్ష మార్కెట్ అనలిటిక్స్ & సేకరణ కార్యకలాపాలు",
@@ -5343,6 +6216,19 @@ const translations = {
         cancelBtn: "రద్దు చేయండి"
     },
     Tamil: {
+        yardMapNav: "மண்டி யார்டு வரைபடம்",
+        navYardMap: "மண்டி யார்டு வரைபடம்",
+        mandiYardMapBtn: "நேரலை யார்டு மேப்",
+        yardMapSectionTitle: "நேரலை ஊடாடும் மண்டி யார்டு வரைபடம் & ஓட்டக் கட்டுப்படுத்தி",
+        yardMapSectionDesc: "நுழைவு வாயில் முதல் டிபிடி தீர்வு வரை 8 மண்டி மண்டலங்களில் வாகனங்களின் நிகழ்நேர கண்காணிப்பு.",
+        refreshMapBtn: "வரைபடத்தைப் புதுப்பி",
+        mapLegendBtn: "யார்டு குறியீடு",
+        filterAllZones: "அனைத்து 8 மண்டலங்கள்",
+        filterEntryQueue: "நுழைவு & வரிசை",
+        filterGrossWeigh: "மொத்த எடை மேடை",
+        filterQualityLab: "தர ஆய்வகம்",
+        filterUnloadTare: "இறக்குதல் & வெற்று எடை",
+        filterExitClearance: "வெளியேறுதல் & டிபிடி",
         navLiveAnalytics: "நேரலை பகுப்பாய்வு",
         mandiAnalyticsBtn: "நேரலை பகுப்பாய்வு",
         analyticsDashboardTitle: "நேரலை மண்டி பகுப்பாய்வு & கொள்முதல் செயல்பாடுகள்",
@@ -5629,6 +6515,19 @@ const translations = {
         cancelBtn: "ரத்து செய்"
     },
     Kannada: {
+        yardMapNav: "ಮಂಡಿ ಯಾರ್ಡ್ ನಕ್ಷೆ",
+        navYardMap: "ಮಂಡಿ ಯಾರ್ಡ್ ನಕ್ಷೆ",
+        mandiYardMapBtn: "ಲೈವ್ ಯಾರ್ಡ್ ನಕ್ಷೆ",
+        yardMapSectionTitle: "ಲೈವ್ ಸಂವಾದಾತ್ಮಕ ಮಂಡಿ ಯಾರ್ಡ್ ನಕ್ಷೆ ಮತ್ತು ಹರಿವು ನಿಯಂತ್ರಕ",
+        yardMapSectionDesc: "ಗೇಟ್ ಪ್ರವೇಶದಿಂದ ಡಿಬಿಟಿ ಇತ್ಯರ್ಥದವರೆಗೆ 8 ಮಂಡಿ ವಲಯಗಳಲ್ಲಿ ವಾಹನಗಳ ನೈಜ-ಸಮಯದ ಕಾರ್ಯಾಚರಣೆ ಟ್ರ್ಯಾಕಿಂಗ್.",
+        refreshMapBtn: "ನಕ್ಷೆ ರಿಫ್ರೆಶ್",
+        mapLegendBtn: "ಯಾರ್ಡ್ ವಿವರಣೆ",
+        filterAllZones: "ಎಲ್ಲಾ 8 ವಲಯಗಳು",
+        filterEntryQueue: "ಪ್ರವೇಶ & ಸರತಿ",
+        filterGrossWeigh: "ಒಟ್ಟು ತೂಕದ ಸೇತುವೆ",
+        filterQualityLab: "ಗುಣಮಟ್ಟ ಲ್ಯಾಬ್",
+        filterUnloadTare: "ಇಳಿಸುವಿಕೆ & ಖಾಲಿ ತೂಕ",
+        filterExitClearance: "ನಿರ್ಗಮನ & ಡಿಬಿಟಿ",
         navLiveAnalytics: "ಲೈವ್ ವಿಶ್ಲೇಷಣೆ",
         mandiAnalyticsBtn: "ಲೈವ್ ವಿಶ್ಲೇಷಣೆ",
         analyticsDashboardTitle: "ಲೈವ್ ಮಂಡಿ ವಿಶ್ಲೇಷಣೆ ಮತ್ತು ಖರೀದಿ ಕಾರ್ಯಾಚರಣೆಗಳು",
@@ -5915,6 +6814,19 @@ const translations = {
         cancelBtn: "ರದ್ದುಮಾಡಿ"
     },
     Malayalam: {
+        yardMapNav: "മണ്ടി യാർഡ് മാപ്പ്",
+        navYardMap: "മണ്ടി യാർഡ് മാപ്പ്",
+        mandiYardMapBtn: "തത്സമയ യാർഡ് മാപ്പ്",
+        yardMapSectionTitle: "തത്സമയ സംവേദനാത്മക മണ്ടി യാർഡ് മാപ്പും ഫ്ലോ കൺട്രോളറും",
+        yardMapSectionDesc: "ഗേറ്റ് എൻട്രി മുതൽ ഡിബിടി സെറ്റിൽമെന്റ് വരെയുള്ള 8 മണ്ടി സോണുകളിൽ തത്സമയ വാഹന ട്രാക്കിംഗ്.",
+        refreshMapBtn: "മാപ്പ് പുതുക്കുക",
+        mapLegendBtn: "യാർഡ് സൂചിക",
+        filterAllZones: "എല്ലാ 8 സോണുകളും",
+        filterEntryQueue: "പ്രവേശനവും ക്യൂവും",
+        filterGrossWeigh: "ഗ്രോസ് വെയ്ബ്രിഡ്ജ്",
+        filterQualityLab: "ക്വാളിറ്റി ലാബ്",
+        filterUnloadTare: "അൺലോഡിംഗും ശൂന്യഭാരവും",
+        filterExitClearance: "എക്സിറ്റും ഡിബിടിയും",
         navLiveAnalytics: "തത്സമയ അനലിറ്റിക്‌സ്",
         mandiAnalyticsBtn: "തത്സമയ അനലിറ്റിക്‌സ്",
         analyticsDashboardTitle: "തത്സമയ മാർക്കറ്റ് അനലിറ്റിക്‌സ് & സംഭരണ പ്രവർത്തനങ്ങൾ",
@@ -6306,6 +7218,7 @@ function renderDashboardForRole() {
         updateOfficerStats();
         renderOfficerCongestionDashboard();
         if (typeof KisanAnalytics !== "undefined") KisanAnalytics.renderDashboard();
+        if (typeof KisanYardMap !== "undefined") KisanYardMap.renderOfficerYardMap();
     } else {
         if (officerView) officerView.style.display = "none";
         if (farmerView) farmerView.style.display = "block";
@@ -8322,6 +9235,12 @@ document.addEventListener("click", function(event) {
             case "officer-ai-inspect":
                 openQualityInspectionModal();
                 break;
+            case "farmer-yard-map":
+                openFarmerYardMapModal();
+                break;
+            case "officer-yard-map":
+                scrollToOfficerSection("officer-yard-map-section");
+                break;
             case "centre":
                 openCentre();
                 break;
@@ -9831,6 +10750,7 @@ document.addEventListener("DOMContentLoaded", function() {
     updateDashboardAfterBooking();
     initKisanSyncListeners();
     if (typeof KisanAnalytics !== "undefined") KisanAnalytics.initListeners();
+    if (typeof KisanYardMap !== "undefined") KisanYardMap.initListeners();
     KisanNotifications.updateBadges();
     console.log("KisanSetu Ready for Hackathon Presentation! Real-Time Sync & Notifications Active.");
 });

@@ -80,6 +80,11 @@
                         <span data-language-key="myGatePassQR">My Gate Pass QR</span>
                     </a>
 
+                    <a href="#" class="nav-item" data-action="yard-map" onclick="openFarmerYardMapModal(); return false;">
+                        <i class="fa-solid fa-map-location-dot" style="color:#0284c7;"></i>
+                        <span data-language-key="yardMapNav">Mandi Yard Map</span>
+                    </a>
+
                     <a href="#" class="nav-item" data-action="history">
                         <i class="fa-solid fa-clock-rotate-left"></i>
                         <span data-language-key="history">Booking History</span>
@@ -126,6 +131,11 @@
                     <a href="#" class="nav-item active" data-action="officer-overview" onclick="scrollToOfficerSection('officer-hero-section'); return false;">
                         <i class="fa-solid fa-gauge-high"></i>
                         <span data-language-key="navYardOverview">Yard Overview</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-yard-map" onclick="scrollToOfficerSection('officer-yard-map-section'); return false;">
+                        <i class="fa-solid fa-map-location-dot" style="color:#0284c7;"></i>
+                        <span data-language-key="navYardMap">Mandi Yard Map</span>
                     </a>
 
                     <a href="#" class="nav-item" data-action="officer-queue" onclick="scrollToOfficerSection('officer-queue-section'); return false;">
@@ -317,6 +327,11 @@
                                 <button class="secondary-button" onclick="openFarmerQRModal()" title="Show Gate Pass QR Code" style="background:#fff; border:1px solid #cce8d6; color:#174d32;">
                                     <i class="fa-solid fa-qrcode"></i>
                                     <span id="show-my-qr" data-language-key="showMyQR">Show My QR</span>
+                                </button>
+
+                                <button class="secondary-button" onclick="openFarmerYardMapModal()" title="View Interactive Mandi Yard Map" style="background:#fff; border:1px solid #bae6fd; color:#0369a1;">
+                                    <i class="fa-solid fa-map-location-dot"></i>
+                                    <span data-language-key="yardMapNav">Mandi Yard Map</span>
                                 </button>
                             </div>
 
@@ -791,6 +806,9 @@
                             <button type="button" class="op-btn op-btn-scan" onclick="openOfficerQRScannerModal()" style="background:#174d32; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-qrcode"></i> <span data-language-key="scanFarmerQRBtn">Scan Farmer QR</span>
                             </button>
+                            <button type="button" class="op-btn op-btn-yard-map" onclick="scrollToOfficerSection('officer-yard-map-section')" style="background:#0284c7; color:#fff; font-weight:700;">
+                                <i class="fa-solid fa-map-location-dot"></i> <span data-language-key="mandiYardMapBtn">Live Yard Map</span>
+                            </button>
                             <button type="button" class="op-btn op-btn-inspect-top" onclick="openQualityInspectionModal()" style="background:#0f766e; color:#fff; font-weight:700;">
                                 <i class="fa-solid fa-microscope"></i> <span data-language-key="aiQualityInspectionBtn">AI Quality Inspection</span>
                             </button>
@@ -812,6 +830,58 @@
                             <button type="button" class="op-btn op-btn-reset" onclick="resetOfficerYardQueue()">
                                 <i class="fa-solid fa-rotate-left"></i> <span data-language-key="resetDemoQueueBtn">Reset Demo Queue</span>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Mandi Yard Map Section (Task 08) -->
+                    <div class="dashboard-card officer-yard-map-card" id="officer-yard-map-section">
+                        <div class="card-header">
+                            <div>
+                                <h3 data-language-key="yardMapSectionTitle">Interactive Mandi Yard Map & Operational Layout</h3>
+                                <p data-language-key="yardMapSectionDesc">Bird's-eye schematic control of entry gates, weighbridges, AI quality labs, unloading bays, and vehicle queues.</p>
+                            </div>
+                            <div class="yard-map-header-controls">
+                                <span class="live-pulse-badge">
+                                    <span class="pulse-dot"></span> <span data-language-key="liveStreamingBadge">LIVE REAL-TIME MAP</span>
+                                </span>
+                                <select id="officer-yard-centre-select" class="custom-select yard-centre-dropdown" onchange="KisanYardMap.switchCentre(this.value)">
+                                    <option value="AP State Procurement Centre (Yard 1)">AP State Procurement Centre (Yard 1)</option>
+                                    <option value="District Food Grain Hub (Yard 2)">District Food Grain Hub (Yard 2)</option>
+                                </select>
+                                <button type="button" class="scanner-demo-chip" style="margin:0; padding:4px 10px; font-size:11px;" onclick="KisanYardMap.renderOfficerYardMap()">
+                                    <i class="fa-solid fa-arrows-rotate"></i> <span data-language-key="refreshMapBtn">Refresh</span>
+                                </button>
+                                <button type="button" class="scanner-demo-chip" style="margin:0; padding:4px 10px; font-size:11px; background:#f8fafc; color:#334155; border:1px solid #cbd5e1;" onclick="KisanYardMap.openLegendModal()">
+                                    <i class="fa-solid fa-circle-info"></i> <span data-language-key="mapLegendBtn">Map Legend</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Stage Filter Bar -->
+                        <div class="yard-map-filter-bar">
+                            <button type="button" class="yard-filter-btn active" data-stage="all" onclick="KisanYardMap.filterStage('all')">
+                                <i class="fa-solid fa-layer-group"></i> <span data-language-key="filterAllZones">All 8 Zones</span>
+                            </button>
+                            <button type="button" class="yard-filter-btn" data-stage="gate_in" onclick="KisanYardMap.filterStage('gate_in')">
+                                <i class="fa-solid fa-door-open"></i> <span data-language-key="filterEntryQueue">Entry & Queue</span>
+                            </button>
+                            <button type="button" class="yard-filter-btn" data-stage="gross_weighing" onclick="KisanYardMap.filterStage('gross_weighing')">
+                                <i class="fa-solid fa-scale-unbalanced"></i> <span data-language-key="filterGrossWeigh">Gross Weigh</span>
+                            </button>
+                            <button type="button" class="yard-filter-btn" data-stage="quality_check" onclick="KisanYardMap.filterStage('quality_check')">
+                                <i class="fa-solid fa-microscope"></i> <span data-language-key="filterQualityLab">Quality Lab</span>
+                            </button>
+                            <button type="button" class="yard-filter-btn" data-stage="tare_weighing" onclick="KisanYardMap.filterStage('tare_weighing')">
+                                <i class="fa-solid fa-scale-balanced"></i> <span data-language-key="filterUnloadTare">Unloading & Tare</span>
+                            </button>
+                            <button type="button" class="yard-filter-btn" data-stage="completed" onclick="KisanYardMap.filterStage('completed')">
+                                <i class="fa-solid fa-circle-check"></i> <span data-language-key="filterExitClearance">Exit & DBT</span>
+                            </button>
+                        </div>
+
+                        <!-- Target Container Populated Dynamically by KisanYardMap -->
+                        <div class="yard-map-body-container" id="officer-yard-map-target">
+                            <!-- Rendered dynamically by KisanYardMap.renderOfficerYardMap() -->
                         </div>
                     </div>
 
