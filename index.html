@@ -113,6 +113,11 @@
                         <span data-language-key="kisanVaniNav">Kisan Vani AI</span>
                     </a>
 
+                    <a href="#" class="nav-item" data-action="weather-advisory" onclick="openDryingAdvisoryModal(); return false;">
+                        <i class="fa-solid fa-cloud-sun" style="color:#eab308;"></i>
+                        <span data-language-key="weatherNav">Weather & Advisory</span>
+                    </a>
+
                     <a href="#" class="nav-item" data-action="centre">
                         <i class="fa-solid fa-building"></i>
                         <span data-language-key="centre">Procurement Centres</span>
@@ -181,6 +186,11 @@
                     <a href="#" class="nav-item" data-action="officer-ai-inspect" onclick="openQualityInspectionModal(); return false;">
                         <i class="fa-solid fa-microscope"></i>
                         <span data-language-key="aiQualityInspection">AI Quality Inspection</span>
+                    </a>
+
+                    <a href="#" class="nav-item" data-action="officer-weather" onclick="openDryingAdvisoryModal(); return false;">
+                        <i class="fa-solid fa-cloud-sun" style="color:#eab308;"></i>
+                        <span data-language-key="weatherNav">Weather Advisory</span>
                     </a>
 
                     <a href="#" class="nav-item" data-action="officer-notifications" onclick="openNotifications(); return false;">
@@ -590,6 +600,17 @@
                                     <i class="fa-solid fa-chevron-right"></i>
                                 </button>
 
+                                <button class="quick-action" onclick="openDryingAdvisoryModal()">
+                                    <div class="quick-action-icon" style="background:#fef3c7; color:#d97706;">
+                                        <i class="fa-solid fa-cloud-sun"></i>
+                                    </div>
+                                    <div>
+                                        <strong data-language-key="weatherTitle">Weather & Grain Advisory</strong>
+                                        <span data-language-key="weatherCardSubtitle">Real-time mandi microclimate & solar drying feasibility</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+
                                 <button class="quick-action" onclick="openProcurementReceiptModal()">
                                     <div class="quick-action-icon" style="background:#e8f5ed; color:#174d32;">
                                         <i class="fa-solid fa-receipt"></i>
@@ -710,6 +731,23 @@
 
                         </div>
 
+                        <!-- Weather & Grain Drying Advisory Widget -->
+                        <div class="dashboard-card weather-advisory-card" id="farmer-weather-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 data-language-key="weatherTitle">Weather & Grain Drying Advisory</h3>
+                                    <p data-language-key="weatherCardSubtitle" id="weather-centre-location"><i class="fa-solid fa-location-dot"></i> AP State Procurement Centre (Yard 1)</p>
+                                </div>
+                                <button class="more-button" onclick="openDryingAdvisoryModal()" title="View Full 24-Hr Advisory & Crop Guidelines">
+                                    <i class="fa-solid fa-up-right-from-square"></i>
+                                </button>
+                            </div>
+
+                            <div class="weather-card-inner" id="weather-card-body" style="padding: 16px 20px 20px;">
+                                <!-- Rendered dynamically by renderFarmerWeatherCard() -->
+                            </div>
+                        </div>
+
                     </div>
 
                 </div>
@@ -732,6 +770,7 @@
                                 <span><i class="fa-solid fa-location-dot"></i> AP State Procurement Centre, Guntur Yard</span>
                                 <span><i class="fa-solid fa-user-shield"></i> <span data-language-key="officerIncharge">Officer Incharge:</span> <strong id="officer-incharge-name">Officer S. Sharma (MANDI-OFF-902)</strong></span>
                                 <span><i class="fa-solid fa-circle-check" style="color:#2ecc71;"></i> <span data-language-key="weighbridgeOnline">Weighbridge Online</span></span>
+                                <span style="cursor:pointer;" onclick="openDryingAdvisoryModal()" title="View Yard Weather Advisory"><i class="fa-solid fa-cloud-sun" style="color:#f59e0b;"></i> <span id="officer-hero-weather-tag">Weather Telemetry Active</span></span>
                             </div>
                         </div>
                         <div class="officer-hero-actions">

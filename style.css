@@ -10420,3 +10420,664 @@ body.dark-mode .zone-icon-box {
         grid-template-columns: 1fr 1fr;
     }
 }
+
+/* =========================================================
+   TASK 10: WEATHER & GRAIN DRYING ADVISORY STYLES
+   Mandi Microclimate Telemetry, Multi-Factor Verdicts, Hourly Strips & Modal
+========================================================= */
+
+.weather-advisory-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.weather-advisory-card:hover {
+    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+}
+
+.farmer-weather-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.fw-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.fw-condition {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.fw-icon {
+    font-size: 32px;
+}
+
+.fw-temp {
+    font-size: 26px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+    font-family: 'Nunito', sans-serif;
+}
+
+.fw-cond-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.fw-advisory-status {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.fw-advisory-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: #94a3b8;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+.advisory-status-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.advisory-status-tag.suitable {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.advisory-status-tag.caution {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+}
+
+.advisory-status-tag.not-recommended {
+    background: #ffe4e6;
+    color: #be123c;
+    border: 1px solid #fecdd3;
+}
+
+.advisory-status-tag.unavailable {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.fw-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: #f8fafc;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid #f1f5f9;
+}
+
+.fw-m-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.fw-m-item span {
+    font-size: 11px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.fw-m-item strong {
+    font-size: 13px;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.fw-explanation-banner {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    color: #166534;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.4;
+}
+
+.fw-bottom-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #64748b;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 8px;
+}
+
+.fw-window strong {
+    color: #b45309;
+}
+
+.fw-unavailable-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 14px 16px;
+}
+
+/* =========================================================
+   TASK 10: 24-HOUR DRYING ADVISORY MODAL
+========================================================= */
+
+.drying-advisory-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    font-family: inherit;
+    color: #0f172a;
+}
+
+.advisory-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.advisory-centre-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #0369a1;
+    background: #e0f2fe;
+    padding: 3px 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+.advisory-modal-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    font-family: 'Nunito', sans-serif;
+}
+
+.advisory-modal-sub {
+    font-size: 11.5px;
+    color: #64748b;
+    margin: 2px 0 0;
+}
+
+.weather-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.weather-refresh-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.advisory-weather-ribbon {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
+    border: 1px solid #bae6fd;
+    border-radius: 14px;
+    padding: 14px 18px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.weather-ribbon-col.current-temp-col {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.weather-main-icon {
+    font-size: 38px;
+}
+
+.weather-temp-num {
+    font-size: 30px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+    font-family: 'Nunito', sans-serif;
+}
+
+.weather-cond-desc {
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+    margin-top: 2px;
+}
+
+.weather-ribbon-metrics {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.w-metric-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    padding: 8px 12px;
+    border-radius: 10px;
+    min-width: 105px;
+}
+
+.w-metric-chip i {
+    font-size: 18px;
+}
+
+.w-metric-label {
+    font-size: 10px;
+    color: #64748b;
+    display: block;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.w-metric-val {
+    font-size: 14px;
+    color: #0f172a;
+    font-weight: 800;
+}
+
+.weather-unavailable-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: #64748b;
+    font-size: 12.5px;
+}
+
+.weather-unavailable-banner i {
+    font-size: 24px;
+    color: #94a3b8;
+}
+
+.advisory-verdict-card {
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border: 1px solid;
+}
+
+.advisory-verdict-card.advisory-suitable {
+    background: #f0fdf4;
+    border-color: #86efac;
+}
+
+.advisory-verdict-card.advisory-caution {
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+.advisory-verdict-card.advisory-not-recommended {
+    background: #fff1f2;
+    border-color: #fecdd3;
+}
+
+.advisory-verdict-card.advisory-unavailable {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+.advisory-verdict-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding-bottom: 10px;
+}
+
+.advisory-badge-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+.advisory-verdict-title {
+    font-size: 17px;
+    font-weight: 800;
+    margin: 2px 0 0;
+    color: #0f172a;
+}
+
+.advisory-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 24px;
+    font-size: 12.5px;
+    font-weight: 800;
+}
+
+.advisory-pill-suitable {
+    background: #16a34a;
+    color: #ffffff;
+}
+
+.advisory-pill-caution {
+    background: #d97706;
+    color: #ffffff;
+}
+
+.advisory-pill-not-recommended {
+    background: #e11d48;
+    color: #ffffff;
+}
+
+.advisory-pill-unavailable {
+    background: #64748b;
+    color: #ffffff;
+}
+
+.advisory-section-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.advisory-block-title {
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.advisory-block-body {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #1e293b;
+    margin: 0;
+}
+
+.advisory-window-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #fde68a;
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    color: #92400e;
+    width: fit-content;
+}
+
+.advisory-window-exp {
+    font-size: 11.5px;
+    color: #78350f;
+    margin: 4px 0 0;
+}
+
+.advisory-crop-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+
+.crop-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+}
+
+.crop-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    color: #0f172a;
+}
+
+.crop-moisture-threshold {
+    font-size: 12px;
+    color: #475569;
+}
+
+.crop-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.crop-guide-item {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    padding: 8px 10px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.guide-item-label {
+    font-size: 10.5px;
+    color: #64748b;
+}
+
+.guide-item-val {
+    font-size: 12.5px;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.crop-storage-tip {
+    font-size: 12px;
+    color: #334155;
+    background: #fefce8;
+    border: 1px solid #fef08a;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.advisory-forecast-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.forecast-section-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #334155;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hourly-forecast-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+}
+
+.hourly-forecast-strip::-webkit-scrollbar {
+    height: 6px;
+}
+
+.hourly-forecast-strip::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.hourly-forecast-card {
+    flex: 0 0 78px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 6px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    text-align: center;
+}
+
+.hourly-forecast-card.favorable-hour {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.hourly-forecast-card.unfavorable-hour {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    opacity: 0.85;
+}
+
+.hf-time {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.hf-icon {
+    font-size: 18px;
+    margin: 2px 0;
+}
+
+.hf-temp {
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.hf-rain {
+    font-size: 10px;
+    color: #2563eb;
+    font-weight: 600;
+}
+
+.hf-badge {
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 10px;
+    text-transform: uppercase;
+}
+
+.hf-badge.badge-fav {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.hf-badge.badge-unfav {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.advisory-storage-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #1e40af;
+    line-height: 1.4;
+}
+
+.advisory-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.advisory-disclaimer {
+    font-size: 11px;
+    color: #64748b;
+    font-style: italic;
+}
+
+@media (max-width: 640px) {
+    .fw-metrics-grid {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+    .crop-guide-grid {
+        grid-template-columns: 1fr;
+    }
+    .advisory-weather-ribbon {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

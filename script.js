@@ -3315,6 +3315,7 @@ const KisanVani = (function() {
 
     const SUGGESTIONS = {
         en: [
+            "Can I dry my grain today?",
             "Find me the best slot",
             "What is my queue position?",
             "When is my procurement slot?",
@@ -3326,6 +3327,7 @@ const KisanVani = (function() {
             "How do I contact support?"
         ],
         te: [
+            "ఈ రోజు ధాన్యం ఆరబెట్టవచ్చా?",
             "మంచి స్లాట్ సూచించండి",
             "నా క్యూ పొజిషన్ ఎంత?",
             "నా స్లాట్ సమయం ఎప్పుడు?",
@@ -3337,6 +3339,7 @@ const KisanVani = (function() {
             "సహాయం ఎలా పొందాలి?"
         ],
         hi: [
+            "क्या आज अनाज सुखा सकते हैं?",
             "कम भीड़ वाला स्लॉट बताएं",
             "मेरी कतार में स्थिति क्या है?",
             "मेरा खरीद स्लॉट कब है?",
@@ -3444,7 +3447,22 @@ const KisanVani = (function() {
     function detectIntent(rawQuery, lang) {
         const q = (rawQuery || "").toLowerCase().trim();
 
-        // 0. Weighbridge & Weight Calculation queries (Task 09)
+        // 0. Weather & Grain Drying Advisory queries (Task 10)
+        const isExplicitWeather = /\b(weather|dry|drying|rainy|rainfall|sunny|forecast|temperature|humidity|drying window)\b/i.test(q) ||
+            /\brain\b/i.test(q) || /\bsun\b/i.test(q) ||
+            q.includes("వాతావరణం") || q.includes("ఆరబెట్ట") || q.includes("ఎండ") ||
+            q.includes("मौसम") || q.includes("सुखाना") || q.includes("सुखा") || q.includes("धूप");
+
+        const isExplicitQuality = (q.includes("quality") || q.includes("inspect") || q.includes("defect") || q.includes("grade") || q.includes("నాణ్యత") || q.includes("गुणवत्ता"));
+
+        if (isExplicitWeather && !isExplicitQuality) {
+            return "DRYING_ADVISORY";
+        }
+        if (isExplicitWeather && (q.includes("weather") || q.includes("dry") || q.includes("drying") || q.includes("వాతావరణం") || q.includes("ఆరబెట్ట") || q.includes("मौसम") || q.includes("सुखा"))) {
+            return "DRYING_ADVISORY";
+        }
+
+        // 0.5 Weighbridge & Weight Calculation queries (Task 09)
         if (
             q.includes("weight") || q.includes("weighbridge") || q.includes("gross weight") || q.includes("tare weight") || q.includes("net weight") || q.includes("weighment slip") || q.includes("weighment receipt") || q.includes("weigh slip") || q.includes("how much weight") || q.includes("my weight") ||
             q.includes("బరువు") || q.includes("వేబ్రిడ్జి") || q.includes("తూకం") || q.includes("నికర బరువు") || q.includes("స్థూల బరువు") || q.includes("ఖాళీ బరువు") || q.includes("వేయింగ్ స్లిప్") || q.includes("రసీదు") ||
@@ -3591,7 +3609,7 @@ const KisanVani = (function() {
         let lang = rawLang || currentLanguage;
         let ctx = rawCtx;
 
-        const KNOWN_INTENTS = ["WEIGHBRIDGE_STATUS", "QUEUE_STATUS", "QR_HELP", "QUALITY_STATUS", "PAYMENT_STATUS", "GRIEVANCE_HELP", "CENTRE_INFORMATION", "NOTIFICATIONS", "SMART_SLOT", "SLOT_INFORMATION", "BOOKING_STATUS", "YARD_MAP", "GENERAL_HELP", "UNKNOWN"];
+        const KNOWN_INTENTS = ["DRYING_ADVISORY", "WEATHER_STATUS", "WEIGHBRIDGE_STATUS", "QUEUE_STATUS", "QR_HELP", "QUALITY_STATUS", "PAYMENT_STATUS", "GRIEVANCE_HELP", "CENTRE_INFORMATION", "NOTIFICATIONS", "SMART_SLOT", "SLOT_INFORMATION", "BOOKING_STATUS", "YARD_MAP", "GENERAL_HELP", "UNKNOWN"];
         if (!KNOWN_INTENTS.includes(intentOrQuery)) {
             query = intentOrQuery;
             lang = rawQueryOrLang || currentLanguage;
@@ -3603,6 +3621,36 @@ const KisanVani = (function() {
         let actions = [];
 
         switch (intent) {
+            case "DRYING_ADVISORY":
+            case "WEATHER_STATUS":
+                const wData = (typeof KisanWeather !== "undefined") ? KisanWeather.getWeatherSync(ctx.centre) : null;
+                const adv = (typeof KisanDryingAdvisory !== "undefined") 
+                    ? KisanDryingAdvisory.getDryingRecommendation(wData, ctx.crop, ctx.moisture)
+                    : { status: "SUITABLE", statusText: "Suitable", reason: "Weather is clear and dry.", dryingWindow: "10:00 AM – 02:00 PM" };
+                
+                if (wData && wData.status === "available") {
+                    if (lang === "te") {
+                        text = `వాతావరణ నివేదిక (${ctx.centre || 'మండీ'}): ఉష్ణోగ్రత ${wData.temperature}°C, తేమ ${wData.relativeHumidity}%, వర్షం అవకాశం ${wData.rainProbability}%. ధాన్యం ఆరబెట్టే సలహా: ${adv.status === 'SUITABLE' ? 'అనుకూలం' : (adv.status === 'CAUTION' ? 'జాగ్రత్త అవసరం' : 'సిఫార్సు చేయబడలేదు')}. ${adv.reason} సూచించిన సమయం: ${adv.dryingWindow}.`;
+                    } else if (lang === "hi") {
+                        text = `मौसम एवं सुखाई सलाह (${ctx.centre || 'मंडी'}): तापमान ${wData.temperature}°C, आर्द्रता ${wData.relativeHumidity}%, बारिश की संभावना ${wData.rainProbability}%। सुखाई सलाह: ${adv.status === 'SUITABLE' ? 'अनुकूल' : (adv.status === 'CAUTION' ? 'सावधानी बरतें' : 'अनुशंसित नहीं')}। ${adv.reason} सुझाई गई अवधि: ${adv.dryingWindow}।`;
+                    } else {
+                        text = `Weather & Grain Drying Advisory (${ctx.centre || 'Mandi'}): Temp ${wData.temperature}°C, Humidity ${wData.relativeHumidity}%, Rain Chance ${wData.rainProbability}%. Drying Advisory: ${adv.statusText}. ${adv.reason} Suggested Window: ${adv.dryingWindow}.`;
+                    }
+                } else {
+                    if (lang === "te") {
+                        text = `ప్రస్తుతం రియల్-టైమ్ వాతావరణ డేటా అందుబాటులో లేదు. స్థానిక మండీ ప్రకటనలను గమనించండి. మీ ధాన్యం (${ctx.crop}) సురక్షిత నిల్వ తేమ పరిమితి: ${adv.cropStandard ? adv.cropStandard.safeMoistureLimit : '14'}%.`;
+                    } else if (lang === "hi") {
+                        text = `वर्तमान में मौसम डेटा उपलब्ध नहीं है। मंडी के स्थानीय मौसम बुलेटिन का पालन करें। फसल (${ctx.crop}) सुरक्षित भंडारण नमी सीमा: ${adv.cropStandard ? adv.cropStandard.safeMoistureLimit : '14'}%।`;
+                    } else {
+                        text = `Real-time weather data is currently unavailable. Please follow local mandi sky observations. Safe storage threshold for ${ctx.crop}: ${adv.cropStandard ? adv.cropStandard.safeMoistureLimit : '14'}% moisture.`;
+                    }
+                }
+                actions.push({
+                    label: lang === "te" ? "ఆరబెట్టే సలహా చూడండి" : (lang === "hi" ? "सुखाई सलाह देखें" : "View Drying Advisory"),
+                    onclick: "openDryingAdvisoryModal()"
+                });
+                break;
+
             case "WEIGHBRIDGE_STATUS":
                 if (lang === "te") {
                     text = `మీ వాహనం వేబ్రిడ్జి వివరాలు (టోకెన్ #${ctx.token}): స్థూల బరువు ${ctx.grossWeight} Q, ఖాళీ బరువు ${ctx.tareWeight} Q, ధృవీకరించిన నికర బరువు ${ctx.netWeight} Q (${ctx.netWeightKg} కిలోలు). అంచనా మొత్తం: ${ctx.amount}. రసీదు నంబర్: ${ctx.weighbridgeReceiptId}.`;
@@ -6196,11 +6244,812 @@ function openVehicleDetailModal(tokenId) {
 }
 
 /* =========================================================
+   TASK 10: KISANWEATHER & KISANDRYINGADVISORY
+   Modular Weather Service (Open-Meteo Public API Integration)
+   Multi-Factor Grain Drying Feasibility & Crop Storage Advisory Engine
+========================================================= */
+
+const KisanWeather = (function() {
+    const CACHE_KEY_PREFIX = "kisan_setu_weather_cache_";
+    const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes cache
+
+    const CENTRES_LOCATION = {
+        "AP State Procurement Centre (Yard 1)": {
+            name: "AP State Procurement Centre (Yard 1)",
+            shortName: "Guntur Mandi Yard 1",
+            lat: 16.2929,
+            lng: 80.4552,
+            district: "Guntur, Andhra Pradesh"
+        },
+        "District Food Grain Hub (Yard 2)": {
+            name: "District Food Grain Hub (Yard 2)",
+            shortName: "Guntur Agri Hub Yard 2",
+            lat: 16.3420,
+            lng: 80.4720,
+            district: "Guntur Highway, Andhra Pradesh"
+        },
+        "Tenali Rural Cooperative Mandi": {
+            name: "Tenali Rural Cooperative Mandi",
+            shortName: "Tenali Central Mandi",
+            lat: 16.2437,
+            lng: 80.6400,
+            district: "Tenali, Andhra Pradesh"
+        }
+    };
+
+    const DEFAULT_CENTRE = "AP State Procurement Centre (Yard 1)";
+
+    // WMO Weather Interpretation Code map
+    function interpretWeatherCode(code) {
+        const c = parseInt(code, 10);
+        switch (c) {
+            case 0:
+                return { label: "Clear Sky / Sunny", icon: "fa-sun", iconColor: "#eab308", condition: "clear" };
+            case 1:
+            case 2:
+                return { label: "Partly Cloudy", icon: "fa-cloud-sun", iconColor: "#38bdf8", condition: "partly_cloudy" };
+            case 3:
+                return { label: "Overcast", icon: "fa-cloud", iconColor: "#94a3b8", condition: "overcast" };
+            case 45:
+            case 48:
+                return { label: "Fog / Mist", icon: "fa-smog", iconColor: "#94a3b8", condition: "fog" };
+            case 51:
+            case 53:
+            case 55:
+                return { label: "Light Drizzle", icon: "fa-cloud-rain", iconColor: "#0284c7", condition: "drizzle" };
+            case 61:
+            case 63:
+            case 65:
+                return { label: "Rainy", icon: "fa-cloud-showers-heavy", iconColor: "#0369a1", condition: "rain" };
+            case 80:
+            case 81:
+            case 82:
+                return { label: "Rain Showers", icon: "fa-cloud-showers-water", iconColor: "#0284c7", condition: "showers" };
+            case 95:
+            case 96:
+            case 99:
+                return { label: "Thunderstorm", icon: "fa-cloud-bolt", iconColor: "#7c3aed", condition: "thunderstorm" };
+            default:
+                return { label: "Fair / Variable", icon: "fa-cloud-sun", iconColor: "#0284c7", condition: "variable" };
+        }
+    }
+
+    function getCentreLocation(centreName) {
+        if (centreName && CENTRES_LOCATION[centreName]) {
+            return CENTRES_LOCATION[centreName];
+        }
+        if (centreName) {
+            for (const key of Object.keys(CENTRES_LOCATION)) {
+                if (centreName.includes(key) || key.includes(centreName)) {
+                    return CENTRES_LOCATION[key];
+                }
+            }
+        }
+        return CENTRES_LOCATION[DEFAULT_CENTRE];
+    }
+
+    function getCachedWeather(centreName) {
+        const loc = getCentreLocation(centreName);
+        try {
+            if (typeof localStorage !== "undefined") {
+                const raw = localStorage.getItem(CACHE_KEY_PREFIX + loc.name);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.timestamp && (Date.now() - parsed.timestamp < CACHE_TTL_MS)) {
+                        return parsed.data;
+                    }
+                }
+            }
+        } catch (e) {
+            // cache read silent fail
+        }
+        return null;
+    }
+
+    function saveWeatherCache(centreName, data) {
+        const loc = getCentreLocation(centreName);
+        try {
+            if (typeof localStorage !== "undefined") {
+                localStorage.setItem(CACHE_KEY_PREFIX + loc.name, JSON.stringify({
+                    timestamp: Date.now(),
+                    data: data
+                }));
+            }
+        } catch (e) {
+            // cache write silent fail
+        }
+    }
+
+    async function fetchLiveWeather(centreName) {
+        const loc = getCentreLocation(centreName);
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lng}&current=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m&forecast_days=2&timezone=auto`;
+
+        if (typeof fetch === "undefined") {
+            const cached = getCachedWeather(loc.name);
+            if (cached) return cached;
+            return {
+                status: "unavailable",
+                message: "Weather data currently unavailable",
+                centre: loc.name,
+                location: loc,
+                lastUpdated: "--"
+            };
+        }
+
+        try {
+            let controller = null;
+            let timeoutId = null;
+            if (typeof AbortController !== "undefined") {
+                controller = new AbortController();
+                timeoutId = setTimeout(() => controller.abort(), 6000);
+            }
+
+            const response = await fetch(url, {
+                signal: controller ? controller.signal : undefined
+            });
+
+            if (timeoutId) clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`Weather service returned HTTP ${response.status}`);
+            }
+
+            const json = await response.json();
+            if (!json || !json.current) {
+                throw new Error("Invalid weather data format received");
+            }
+
+            const cur = json.current;
+            const wCode = cur.weather_code !== undefined ? cur.weather_code : 0;
+            const wInfo = interpretWeatherCode(wCode);
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const hourlyForecast = [];
+            if (json.hourly && Array.isArray(json.hourly.time)) {
+                const count = Math.min(24, json.hourly.time.length);
+                for (let i = 0; i < count; i++) {
+                    const rawTime = json.hourly.time[i];
+                    let formattedHour = rawTime;
+                    try {
+                        const d = new Date(rawTime);
+                        formattedHour = d.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+                    } catch (e) {}
+
+                    const hCode = json.hourly.weather_code ? json.hourly.weather_code[i] : 0;
+                    hourlyForecast.push({
+                        time: formattedHour,
+                        isoTime: rawTime,
+                        temperature: json.hourly.temperature_2m ? json.hourly.temperature_2m[i] : 0,
+                        relativeHumidity: json.hourly.relative_humidity_2m ? json.hourly.relative_humidity_2m[i] : 0,
+                        rainProbability: json.hourly.precipitation_probability ? json.hourly.precipitation_probability[i] : 0,
+                        weatherCode: hCode,
+                        weatherInfo: interpretWeatherCode(hCode),
+                        windSpeed: json.hourly.wind_speed_10m ? json.hourly.wind_speed_10m[i] : 0
+                    });
+                }
+            }
+
+            const weatherData = {
+                status: "available",
+                centre: loc.name,
+                location: loc,
+                temperature: Math.round(cur.temperature_2m * 10) / 10,
+                relativeHumidity: Math.round(cur.relative_humidity_2m),
+                rainProbability: Math.round(cur.precipitation_probability !== undefined ? cur.precipitation_probability : 0),
+                windSpeed: Math.round(cur.wind_speed_10m * 10) / 10,
+                weatherCode: wCode,
+                weatherInfo: wInfo,
+                hourlyForecast: hourlyForecast,
+                lastUpdated: timeStr,
+                timestamp: Date.now()
+            };
+
+            saveWeatherCache(loc.name, weatherData);
+            return weatherData;
+        } catch (err) {
+            const cached = getCachedWeather(loc.name);
+            if (cached) return cached;
+
+            return {
+                status: "unavailable",
+                message: "Weather data currently unavailable",
+                error: err.message,
+                centre: loc.name,
+                location: loc,
+                lastUpdated: "--"
+            };
+        }
+    }
+
+    function getWeatherSync(centreName) {
+        const cached = getCachedWeather(centreName);
+        if (cached) return cached;
+        const loc = getCentreLocation(centreName);
+        return {
+            status: "unavailable",
+            message: "Weather data currently unavailable",
+            centre: loc.name,
+            location: loc,
+            lastUpdated: "--"
+        };
+    }
+
+    return {
+        CENTRES_LOCATION,
+        DEFAULT_CENTRE,
+        getCentreLocation,
+        interpretWeatherCode,
+        getCachedWeather,
+        saveWeatherCache,
+        fetchLiveWeather,
+        getWeatherSync
+    };
+})();
+
+const KisanDryingAdvisory = (function() {
+    const CROP_STANDARDS = {
+        "Paddy / Rice": {
+            name: "Paddy / Rice",
+            safeMoistureLimit: 14.0,
+            recommendedSunLayerDepth: "3–5 cm",
+            turningFrequency: "Every 1–2 hours",
+            storageGuidance: "Ensure moisture is <= 14.0% before bagging in gunny bags. Stacking on raised wooden pallets in well-ventilated godowns is essential.",
+            dryingTip: "Sun-dry on tarpaulins, turn frequently to prevent surface sun-checking."
+        },
+        "Wheat": {
+            name: "Wheat",
+            safeMoistureLimit: 12.0,
+            recommendedSunLayerDepth: "4–6 cm",
+            turningFrequency: "Every 2 hours",
+            storageGuidance: "Store at <= 12.0% moisture in airtight bins or treated bags to protect from storage weevils.",
+            dryingTip: "Requires 2–3 continuous sunny days for deep drying before bagging."
+        },
+        "Maize": {
+            name: "Maize",
+            safeMoistureLimit: 13.5,
+            recommendedSunLayerDepth: "3–4 cm",
+            turningFrequency: "Every 1 hour",
+            storageGuidance: "Quick solar drying is vital to inhibit ear rot and Aspergillus fungal growth.",
+            dryingTip: "Spread thin and dry immediately post-harvest."
+        },
+        "Cotton": {
+            name: "Cotton",
+            safeMoistureLimit: 8.5,
+            recommendedSunLayerDepth: "Loose layer",
+            turningFrequency: "Periodic turning",
+            storageGuidance: "Keep in dry, rain-proof sheds. Moisture above 9% stains fiber and reduces ginning outturn.",
+            dryingTip: "Dry lint in shaded/mild sun areas to avoid fiber brittleness."
+        },
+        "Groundnut": {
+            name: "Groundnut",
+            safeMoistureLimit: 9.0,
+            recommendedSunLayerDepth: "5–8 cm pods",
+            turningFrequency: "Every 2–3 hours",
+            storageGuidance: "Thorough pod drying to <= 9% prevents aflatoxin fungal accumulation.",
+            dryingTip: "Sun-dry whole pods until kernels rattle freely inside."
+        },
+        "Mustard / Pulses": {
+            name: "Mustard / Pulses",
+            safeMoistureLimit: 9.0,
+            recommendedSunLayerDepth: "3–4 cm",
+            turningFrequency: "Every 1–2 hours",
+            storageGuidance: "Store in moisture-proof bags. Excess heat causes seed-coat cracking.",
+            dryingTip: "Avoid intense midday heat overexposure (>40°C)."
+        }
+    };
+
+    function normalizeCropName(cropStr) {
+        if (!cropStr) return "Paddy / Rice";
+        const c = String(cropStr).toLowerCase();
+        if (c.includes("paddy") || c.includes("rice") || c.includes("धान") || c.includes("వరి")) return "Paddy / Rice";
+        if (c.includes("wheat") || c.includes("गेहूं") || c.includes("గోధుమ")) return "Wheat";
+        if (c.includes("maize") || c.includes("मक्का") || c.includes("మొక్కజొన్న")) return "Maize";
+        if (c.includes("cotton") || c.includes("कपास") || c.includes("పత్తి")) return "Cotton";
+        if (c.includes("groundnut") || c.includes("मूंगफली") || c.includes("వేరుశనగ")) return "Groundnut";
+        if (c.includes("mustard") || c.includes("pulses") || c.includes("सरसों") || c.includes("పప్పులు")) return "Mustard / Pulses";
+        return "Paddy / Rice";
+    }
+
+    function getCropStandard(cropName) {
+        const norm = normalizeCropName(cropName);
+        return CROP_STANDARDS[norm] || CROP_STANDARDS["Paddy / Rice"];
+    }
+
+    function parseNumericMoisture(val) {
+        if (val === undefined || val === null) return null;
+        if (typeof val === "number") return val;
+        const match = String(val).match(/([\d\.]+)/);
+        return match ? parseFloat(match[1]) : null;
+    }
+
+    function getDryingRecommendation(weatherData, cropType, rawMeasuredMoisture) {
+        const cropStd = getCropStandard(cropType);
+        const measuredMoisture = parseNumericMoisture(rawMeasuredMoisture);
+
+        if (!weatherData || weatherData.status !== "available") {
+            return {
+                status: "UNAVAILABLE",
+                statusText: "Weather Data Unavailable",
+                badgeClass: "advisory-unavailable",
+                icon: "fa-cloud-slash",
+                label: "Advisory Unavailable",
+                reason: "Real-time atmospheric data is currently unavailable. Please monitor local conditions before outdoor grain handling.",
+                action: "Consult local mandi bulletin and observe sky conditions prior to spreading grain.",
+                dryingWindow: "Unable to determine a reliable drying window.",
+                dryingWindowExplanation: "Forecast data unavailable to compute solar drying window.",
+                storageWarning: "Ensure grain is stored in covered, dry premises away from ground moisture.",
+                cropStandard: cropStd,
+                measuredMoisture: measuredMoisture,
+                attribution: "Kisan Setu Advisory • Non-statutory operational guidance."
+            };
+        }
+
+        const temp = weatherData.temperature;
+        const humidity = weatherData.relativeHumidity;
+        const rainProb = weatherData.rainProbability;
+        const wind = weatherData.windSpeed;
+        const wCode = weatherData.weatherCode !== undefined ? weatherData.weatherCode : 0;
+        const isRainCode = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].includes(wCode);
+
+        let status = "SUITABLE";
+        let statusText = "Suitable";
+        let badgeClass = "advisory-suitable";
+        let icon = "fa-circle-check";
+        let reason = "";
+        let action = "";
+
+        // 1. NOT RECOMMENDED RULES
+        if (rainProb >= 50 || isRainCode || humidity > 80) {
+            status = "NOT_RECOMMENDED";
+            statusText = "Not Recommended";
+            badgeClass = "advisory-not-recommended";
+            icon = "fa-triangle-exclamation";
+
+            if (isRainCode || rainProb >= 50) {
+                reason = `Rain probability is high (${rainProb}%), so outdoor drying is not recommended due to risk of grain wetting and mold.`;
+            } else {
+                reason = `Ambient relative humidity is excessively high (${humidity}%), which prevents moisture evaporation and causes grain reabsorption.`;
+            }
+            action = "Delay outdoor drying. Keep grain lots covered with waterproof tarpaulins inside ventilated storage sheds.";
+        }
+        // 2. CAUTION RULES
+        else if (rainProb >= 20 || humidity >= 65 || temp < 22 || temp > 40 || wind > 30 || [45, 48, 3].includes(wCode)) {
+            status = "CAUTION";
+            statusText = "Caution";
+            badgeClass = "advisory-caution";
+            icon = "fa-circle-exclamation";
+
+            if (rainProb >= 20) {
+                reason = `Moderate rain probability (${rainProb}%) and overcast skies. Drying is possible but requires continuous weather monitoring.`;
+            } else if (humidity >= 65) {
+                reason = `Moderate to high humidity (${humidity}%) will slow down the moisture evaporation rate.`;
+            } else if (temp > 40) {
+                reason = `Ambient temperature is very high (${temp}°C). Avoid excessive midday exposure to prevent grain kernel cracking.`;
+            } else if (wind > 30) {
+                reason = `High wind speeds (${wind} km/h) may blow away grain chaff and introduce foreign dust.`;
+            } else {
+                reason = `Marginal weather conditions (${temp}°C, ${humidity}% humidity). Regular monitoring advised.`;
+            }
+            action = `Spread grain in ${cropStd.recommendedSunLayerDepth} thin layers with active turning (${cropStd.turningFrequency}). Keep tarpaulins ready.`;
+        }
+        // 3. SUITABLE RULES
+        else {
+            status = "SUITABLE";
+            statusText = "Suitable";
+            badgeClass = "advisory-suitable";
+            icon = "fa-circle-check";
+            reason = `Low rain probability (${rainProb}%), favorable temperature (${temp}°C), and moderate humidity (${humidity}%) indicate optimal drying conditions.`;
+            action = `Spread grain evenly in ${cropStd.recommendedSunLayerDepth} depth and stir ${cropStd.turningFrequency.toLowerCase()} for uniform moisture reduction.`;
+        }
+
+        const dryingWindow = getDryingWindow(weatherData.hourlyForecast);
+        const storageWarning = getStorageWarning(weatherData, cropStd.name);
+
+        return {
+            status,
+            statusText,
+            badgeClass,
+            icon,
+            reason,
+            action,
+            dryingWindow: dryingWindow.windowText,
+            dryingWindowExplanation: dryingWindow.explanation,
+            storageWarning,
+            cropStandard: cropStd,
+            measuredMoisture,
+            attribution: "Kisan Setu Advisory • Non-statutory operational guidance based on atmospheric data."
+        };
+    }
+
+    function getDryingWindow(hourlyForecast) {
+        if (!Array.isArray(hourlyForecast) || hourlyForecast.length < 4) {
+            return {
+                windowText: "Unable to determine a reliable drying window.",
+                explanation: "Insufficient hourly forecast data available to compute a stable solar drying window."
+            };
+        }
+
+        let bestStart = -1;
+        let bestLen = 0;
+        let curStart = -1;
+        let curLen = 0;
+
+        for (let i = 0; i < Math.min(24, hourlyForecast.length); i++) {
+            const h = hourlyForecast[i];
+            const isFav = h.rainProbability < 25 && h.temperature >= 22 && h.relativeHumidity <= 70 && ![51,53,55,61,63,65,80,81,82,95,96,99].includes(h.weatherCode);
+            if (isFav) {
+                if (curStart === -1) curStart = i;
+                curLen++;
+                if (curLen > bestLen) {
+                    bestLen = curLen;
+                    bestStart = curStart;
+                }
+            } else {
+                curStart = -1;
+                curLen = 0;
+            }
+        }
+
+        if (bestLen >= 3 && bestStart !== -1) {
+            const startHour = hourlyForecast[bestStart].time;
+            const endHour = hourlyForecast[bestStart + bestLen - 1].time;
+            const avgTemp = Math.round(hourlyForecast.slice(bestStart, bestStart + bestLen).reduce((a, b) => a + b.temperature, 0) / bestLen);
+            const minRain = Math.min(...hourlyForecast.slice(bestStart, bestStart + bestLen).map(h => h.rainProbability));
+            return {
+                windowText: `${startHour} – ${endHour}`,
+                explanation: `Low rain risk (${minRain}%), peak solar temperature (~${avgTemp}°C), and favorable humidity create the best drying period.`
+            };
+        }
+
+        return {
+            windowText: "Unable to determine a reliable drying window.",
+            explanation: "Forecast indicates elevated cloud cover, rain probability, or high humidity throughout the next 12 hours."
+        };
+    }
+
+    function getStorageWarning(weatherData, cropName) {
+        if (!weatherData || weatherData.status !== "available") {
+            return "Ensure harvested grain is stored on raised pallets in clean, watertight storage premises.";
+        }
+        const humidity = weatherData.relativeHumidity;
+        const rainProb = weatherData.rainProbability;
+
+        if (humidity > 75 || rainProb >= 50) {
+            return `High ambient humidity (${humidity}%) increases the risk of moisture reabsorption in bagged grain. Ensure bags are stacked on raised wooden dunnage with adequate wall clearance in a dry godown.`;
+        }
+        return `Maintain grain storage in clean, dry godowns with airtight bag stitching to preserve grade and prevent pest infestation.`;
+    }
+
+    function openDryingAdvisoryModal() {
+        const centreName = (typeof currentBooking !== "undefined" && currentBooking && currentBooking.centre) 
+            ? currentBooking.centre 
+            : (typeof KisanYardMap !== "undefined" && KisanYardMap.getCurrentCentre ? KisanYardMap.getCurrentCentre() : "AP State Procurement Centre (Yard 1)");
+        
+        const loc = KisanWeather.getCentreLocation(centreName);
+        const wData = KisanWeather.getCachedWeather(centreName) || KisanWeather.getWeatherSync(centreName);
+        const crop = (typeof currentBooking !== "undefined" && currentBooking && currentBooking.crop) ? currentBooking.crop : "Paddy / Rice";
+        const moisture = (typeof currentBooking !== "undefined" && currentBooking && currentBooking.moisture) ? currentBooking.moisture : "13.5%";
+        const adv = getDryingRecommendation(wData, crop, moisture);
+
+        let statusBadgeHtml = "";
+        if (adv.status === "SUITABLE") {
+            statusBadgeHtml = `<span class="advisory-pill advisory-pill-suitable"><i class="fa-solid fa-circle-check"></i> ${t("advisorySuitable") || "Suitable for Drying"}</span>`;
+        } else if (adv.status === "CAUTION") {
+            statusBadgeHtml = `<span class="advisory-pill advisory-pill-caution"><i class="fa-solid fa-triangle-exclamation"></i> ${t("advisoryCaution") || "Caution Advised"}</span>`;
+        } else if (adv.status === "NOT_RECOMMENDED") {
+            statusBadgeHtml = `<span class="advisory-pill advisory-pill-not-recommended"><i class="fa-solid fa-circle-xmark"></i> ${t("advisoryNotRecommended") || "Not Recommended"}</span>`;
+        } else {
+            statusBadgeHtml = `<span class="advisory-pill advisory-pill-unavailable"><i class="fa-solid fa-cloud-slash"></i> ${t("advisoryUnavailable") || "Weather Unavailable"}</span>`;
+        }
+
+        const hourly = (wData && Array.isArray(wData.hourlyForecast)) ? wData.hourlyForecast.slice(0, 12) : [];
+
+        const content = `
+            <div class="drying-advisory-modal-content">
+                <div class="advisory-modal-header">
+                    <div>
+                        <div class="advisory-centre-tag">
+                            <i class="fa-solid fa-location-dot"></i> ${loc.name}
+                        </div>
+                        <h3 class="advisory-modal-title">${t("weatherTitle") || "Weather & Grain Drying Advisory"}</h3>
+                        <p class="advisory-modal-sub">${loc.district} • GPS: ${loc.lat}°N, ${loc.lng}°E</p>
+                    </div>
+                    <div class="advisory-header-actions">
+                        <button type="button" class="weather-refresh-btn" onclick="KisanDryingAdvisory.refreshModalWeather('${loc.name}')" title="Refresh Live Atmospheric Data">
+                            <i class="fa-solid fa-arrows-rotate"></i> <span data-language-key="refreshWeather">${t("refreshWeather") || "Refresh"}</span>
+                        </button>
+                    </div>
+                </div>
+
+                ${wData && wData.status === "available" ? `
+                <div class="advisory-weather-ribbon">
+                    <div class="weather-ribbon-col current-temp-col">
+                        <i class="fa-solid ${wData.weatherInfo ? wData.weatherInfo.icon : 'fa-sun'} weather-main-icon" style="color:${wData.weatherInfo ? wData.weatherInfo.iconColor : '#eab308'};"></i>
+                        <div>
+                            <div class="weather-temp-num">${wData.temperature}°C</div>
+                            <div class="weather-cond-desc">${wData.weatherInfo ? wData.weatherInfo.label : 'Clear Sky'}</div>
+                        </div>
+                    </div>
+                    <div class="weather-ribbon-metrics">
+                        <div class="w-metric-chip">
+                            <i class="fa-solid fa-droplet" style="color:#0284c7;"></i>
+                            <div>
+                                <span class="w-metric-label">${t("weatherHumidity") || "Humidity"}</span>
+                                <strong class="w-metric-val">${wData.relativeHumidity}%</strong>
+                            </div>
+                        </div>
+                        <div class="w-metric-chip">
+                            <i class="fa-solid fa-cloud-rain" style="color:#2563eb;"></i>
+                            <div>
+                                <span class="w-metric-label">${t("rainChance") || "Rain Chance"}</span>
+                                <strong class="w-metric-val">${wData.rainProbability}%</strong>
+                            </div>
+                        </div>
+                        <div class="w-metric-chip">
+                            <i class="fa-solid fa-wind" style="color:#0d9488;"></i>
+                            <div>
+                                <span class="w-metric-label">${t("weatherWind") || "Wind Speed"}</span>
+                                <strong class="w-metric-val">${wData.windSpeed} km/h</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ` : `
+                <div class="weather-unavailable-banner">
+                    <i class="fa-solid fa-cloud-slash"></i>
+                    <div>
+                        <strong>${t("advisoryUnavailable") || "Weather data currently unavailable"}</strong>
+                        <span>Live atmospheric telemetry offline. Displaying standard agricultural guidelines below.</span>
+                    </div>
+                </div>
+                `}
+
+                <div class="advisory-verdict-card ${adv.badgeClass}">
+                    <div class="advisory-verdict-top">
+                        <div class="advisory-verdict-label-wrap">
+                            <span class="advisory-badge-label">KISAN SETU ADVISORY</span>
+                            <h4 class="advisory-verdict-title">${adv.statusText}</h4>
+                        </div>
+                        <div>
+                            ${statusBadgeHtml}
+                        </div>
+                    </div>
+
+                    <div class="advisory-section-block">
+                        <div class="advisory-block-title"><i class="fa-solid fa-circle-question"></i> ${t("whyExplanation") || "Why this advisory?"}</div>
+                        <p class="advisory-block-body">${adv.reason}</p>
+                    </div>
+
+                    <div class="advisory-section-block">
+                        <div class="advisory-block-title"><i class="fa-solid fa-clipboard-check"></i> ${t("suggestedAction") || "Suggested Action"}</div>
+                        <p class="advisory-block-body">${adv.action}</p>
+                    </div>
+
+                    <div class="advisory-section-block">
+                        <div class="advisory-block-title"><i class="fa-solid fa-clock"></i> ${t("suggestedDryingWindow") || "Suggested Drying Window"}</div>
+                        <div class="advisory-window-pill">
+                            <i class="fa-solid fa-sun" style="color:#d97706;"></i>
+                            <strong>${adv.dryingWindow}</strong>
+                        </div>
+                        ${adv.dryingWindowExplanation ? `<p class="advisory-window-exp">${adv.dryingWindowExplanation}</p>` : ''}
+                    </div>
+                </div>
+
+                <div class="advisory-crop-card">
+                    <div class="crop-card-header">
+                        <div class="crop-card-title">
+                            <i class="fa-solid fa-wheat-awn" style="color:#16a34a;"></i>
+                            <strong>${t("cropGuidanceTitle") || "Crop Storage Guidance"}: ${adv.cropStandard.name}</strong>
+                        </div>
+                        <span class="crop-moisture-threshold">Max Safe Moisture: <strong>${adv.cropStandard.safeMoistureLimit}%</strong></span>
+                    </div>
+                    <div class="crop-card-body">
+                        <div class="crop-guide-grid">
+                            <div class="crop-guide-item">
+                                <span class="guide-item-label">Sun Layer Thickness</span>
+                                <strong class="guide-item-val">${adv.cropStandard.recommendedSunLayerDepth}</strong>
+                            </div>
+                            <div class="crop-guide-item">
+                                <span class="guide-item-label">Turning Frequency</span>
+                                <strong class="guide-item-val">${adv.cropStandard.turningFrequency}</strong>
+                            </div>
+                            <div class="crop-guide-item">
+                                <span class="guide-item-label">Active Lot Measured Moisture</span>
+                                <strong class="guide-item-val" style="color:${adv.measuredMoisture && adv.measuredMoisture > adv.cropStandard.safeMoistureLimit ? '#dc2626' : '#166534'};">${adv.measuredMoisture ? adv.measuredMoisture + '%' : '13.5% (Safe)'}</strong>
+                            </div>
+                        </div>
+                        <p class="crop-storage-tip"><i class="fa-solid fa-lightbulb" style="color:#eab308;"></i> ${adv.cropStandard.storageGuidance}</p>
+                    </div>
+                </div>
+
+                ${hourly.length > 0 ? `
+                <div class="advisory-forecast-section">
+                    <h5 class="forecast-section-title"><i class="fa-solid fa-timeline"></i> 12-Hour Microclimate & Drying Hourly Forecast</h5>
+                    <div class="hourly-forecast-strip">
+                        ${hourly.map(h => {
+                            const isDryFavorable = h.rainProbability < 25 && h.temperature >= 22 && h.relativeHumidity <= 70;
+                            return `
+                                <div class="hourly-forecast-card ${isDryFavorable ? 'favorable-hour' : 'unfavorable-hour'}">
+                                    <div class="hf-time">${h.time}</div>
+                                    <i class="fa-solid ${h.weatherInfo ? h.weatherInfo.icon : 'fa-sun'} hf-icon" style="color:${h.weatherInfo ? h.weatherInfo.iconColor : '#eab308'};"></i>
+                                    <div class="hf-temp">${Math.round(h.temperature)}°C</div>
+                                    <div class="hf-rain"><i class="fa-solid fa-droplet"></i> ${h.rainProbability}%</div>
+                                    <span class="hf-badge ${isDryFavorable ? 'badge-fav' : 'badge-unfav'}">${isDryFavorable ? 'Good' : 'Avoid'}</span>
+                                </div>
+                            `;
+                        }).join("")}
+                    </div>
+                </div>
+                ` : ''}
+
+                <div class="advisory-storage-warning">
+                    <i class="fa-solid fa-warehouse" style="color:#0284c7; font-size:18px;"></i>
+                    <div>
+                        <strong>${t("storageRiskWarning") || "Grain Storage Warning"}</strong>
+                        <p>${adv.storageWarning}</p>
+                    </div>
+                </div>
+
+                <div class="advisory-modal-footer">
+                    <span class="advisory-disclaimer">${adv.attribution} • Last updated: ${wData ? wData.lastUpdated : '--'}</span>
+                    <button type="button" class="submit-auth-btn" style="padding:8px 24px;" onclick="closeModal()">
+                        ${t("close") || "Close"}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        openModal(t("weatherTitle") || "Weather & Grain Drying Advisory", content);
+    }
+
+    async function refreshModalWeather(centreName) {
+        if (typeof KisanWeather !== "undefined") {
+            await KisanWeather.fetchLiveWeather(centreName);
+            openDryingAdvisoryModal();
+            renderFarmerWeatherCard();
+        }
+    }
+
+    return {
+        CROP_STANDARDS,
+        normalizeCropName,
+        getCropStandard,
+        getDryingRecommendation,
+        getDryingWindow,
+        getStorageWarning,
+        openDryingAdvisoryModal,
+        refreshModalWeather
+    };
+})();
+
+if (typeof window !== "undefined") {
+    window.KisanWeather = KisanWeather;
+    window.KisanDryingAdvisory = KisanDryingAdvisory;
+}
+if (typeof global !== "undefined") {
+    global.KisanWeather = KisanWeather;
+    global.KisanDryingAdvisory = KisanDryingAdvisory;
+}
+
+// Global accessible wrappers for Task 10
+function openDryingAdvisoryModal() {
+    KisanDryingAdvisory.openDryingAdvisoryModal();
+}
+
+function renderFarmerWeatherCard() {
+    const cardBody = document.getElementById("weather-card-body");
+    if (!cardBody) return;
+
+    const centreName = (typeof currentBooking !== "undefined" && currentBooking && currentBooking.centre) 
+        ? currentBooking.centre 
+        : "AP State Procurement Centre (Yard 1)";
+    const loc = KisanWeather.getCentreLocation(centreName);
+    const locEl = document.getElementById("weather-centre-location");
+    if (locEl) {
+        locEl.innerHTML = `<i class="fa-solid fa-location-dot"></i> ${loc.name}`;
+    }
+
+    const wData = KisanWeather.getCachedWeather(centreName) || KisanWeather.getWeatherSync(centreName);
+    const crop = (typeof currentBooking !== "undefined" && currentBooking && currentBooking.crop) ? currentBooking.crop : "Paddy / Rice";
+    const moisture = (typeof currentBooking !== "undefined" && currentBooking && currentBooking.moisture) ? currentBooking.moisture : "13.5%";
+    const adv = KisanDryingAdvisory.getDryingRecommendation(wData, crop, moisture);
+
+    let statusPill = "";
+    if (adv.status === "SUITABLE") {
+        statusPill = `<span class="advisory-status-tag suitable"><i class="fa-solid fa-circle-check"></i> ${t("advisorySuitable") || "Suitable"}</span>`;
+    } else if (adv.status === "CAUTION") {
+        statusPill = `<span class="advisory-status-tag caution"><i class="fa-solid fa-triangle-exclamation"></i> ${t("advisoryCaution") || "Caution"}</span>`;
+    } else if (adv.status === "NOT_RECOMMENDED") {
+        statusPill = `<span class="advisory-status-tag not-recommended"><i class="fa-solid fa-circle-xmark"></i> ${t("advisoryNotRecommended") || "Not Recommended"}</span>`;
+    } else {
+        statusPill = `<span class="advisory-status-tag unavailable"><i class="fa-solid fa-cloud-slash"></i> ${t("advisoryUnavailable") || "Unavailable"}</span>`;
+    }
+
+    cardBody.innerHTML = `
+        <div class="farmer-weather-widget" onclick="openDryingAdvisoryModal()" style="cursor:pointer;">
+            ${wData && wData.status === "available" ? `
+            <div class="fw-top-row">
+                <div class="fw-condition">
+                    <i class="fa-solid ${wData.weatherInfo ? wData.weatherInfo.icon : 'fa-sun'} fw-icon" style="color:${wData.weatherInfo ? wData.weatherInfo.iconColor : '#eab308'};"></i>
+                    <div>
+                        <div class="fw-temp">${wData.temperature}°C</div>
+                        <div class="fw-cond-name">${wData.weatherInfo ? wData.weatherInfo.label : 'Clear Sky'}</div>
+                    </div>
+                </div>
+                <div class="fw-advisory-status">
+                    <span class="fw-advisory-label">DRYING ADVISORY</span>
+                    ${statusPill}
+                </div>
+            </div>
+
+            <div class="fw-metrics-grid">
+                <div class="fw-m-item">
+                    <span><i class="fa-solid fa-droplet" style="color:#0284c7;"></i> ${t("weatherHumidity") || "Humidity"}</span>
+                    <strong>${wData.relativeHumidity}%</strong>
+                </div>
+                <div class="fw-m-item">
+                    <span><i class="fa-solid fa-cloud-rain" style="color:#2563eb;"></i> ${t("rainChance") || "Rain Chance"}</span>
+                    <strong>${wData.rainProbability}%</strong>
+                </div>
+                <div class="fw-m-item">
+                    <span><i class="fa-solid fa-wind" style="color:#0d9488;"></i> ${t("weatherWind") || "Wind"}</span>
+                    <strong>${wData.windSpeed} km/h</strong>
+                </div>
+            </div>
+
+            <div class="fw-explanation-banner">
+                <i class="fa-solid fa-circle-info" style="color:#166534;"></i>
+                <span>${adv.reason}</span>
+            </div>
+
+            <div class="fw-bottom-meta">
+                <span class="fw-window"><i class="fa-solid fa-clock"></i> Window: <strong>${adv.dryingWindow}</strong></span>
+                <span class="fw-updated">${t("lastUpdated") || "Updated"}: ${wData.lastUpdated}</span>
+            </div>
+            ` : `
+            <div class="fw-unavailable-box">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <i class="fa-solid fa-cloud-slash" style="font-size:24px; color:#94a3b8;"></i>
+                    <div>
+                        <strong style="color:#334155; font-size:13px;">${t("advisoryUnavailable") || "Weather data currently unavailable"}</strong>
+                        <p style="margin:2px 0 0; font-size:11px; color:#64748b;">Tap to view standard crop storage guidelines</p>
+                    </div>
+                </div>
+                <button type="button" class="text-btn" style="font-size:11px;" onclick="event.stopPropagation(); KisanWeather.fetchLiveWeather('${centreName}').then(() => renderFarmerWeatherCard());">
+                    <i class="fa-solid fa-arrows-rotate"></i> Retry
+                </button>
+            </div>
+            `}
+        </div>
+    `;
+}
+
+/* =========================================================
    1. MULTI-LANGUAGE TRANSLATION DICTIONARIES
 ========================================================= */
 
 const translations = {
     English: {
+        weatherNav: "Weather & Advisory",
+        weatherTitle: "Weather & Grain Drying Advisory",
+        weatherCardSubtitle: "Real-time mandi microclimate & solar grain drying feasibility",
+        advisorySuitable: "Suitable",
+        advisoryCaution: "Caution",
+        advisoryNotRecommended: "Not Recommended",
+        advisoryUnavailable: "Weather Data Unavailable",
+        suggestedDryingWindow: "Suggested Drying Window",
+        storageRiskWarning: "Grain Storage Warning",
+        cropGuidanceTitle: "Crop Storage Guidance",
+        viewDryingAdvisoryBtn: "View 24-Hr Advisory",
+        refreshWeather: "Refresh Weather",
+        rainChance: "Rain Chance",
+        weatherHumidity: "Humidity",
+        weatherWind: "Wind Speed",
+        whyExplanation: "Why this advisory?",
+        suggestedAction: "Suggested Action",
+        lastUpdated: "Last updated",
         weighBtn: "Weigh",
         weighbridgeConsole: "Weighbridge Console",
         grossWeight: "Gross Weight",
@@ -6516,6 +7365,24 @@ const translations = {
         cancelBtn: "Cancel"
     },
     Hindi: {
+        weatherNav: "मौसम एवं सुखाई सलाह",
+        weatherTitle: "मौसम एवं अनाज सुखाई सलाह",
+        weatherCardSubtitle: "मंडी का लाइव मौसम और अनाज सुखाई की अनुकूलता",
+        advisorySuitable: "अनुकूल",
+        advisoryCaution: "सावधानी",
+        advisoryNotRecommended: "अनुशंसित नहीं",
+        advisoryUnavailable: "मौसम डेटा अनुपलब्ध",
+        suggestedDryingWindow: "सुझाई गई सुखाई अवधि",
+        storageRiskWarning: "अनाज भंडारण चेतावनी",
+        cropGuidanceTitle: "फसल भंडारण मार्गदर्शन",
+        viewDryingAdvisoryBtn: "24-घंटे की सलाह देखें",
+        refreshWeather: "मौसम रिफ्रेश करें",
+        rainChance: "बारिश की संभावना",
+        weatherHumidity: "आर्द्रता",
+        weatherWind: "हवा की गति",
+        whyExplanation: "यह सलाह क्यों दी गई?",
+        suggestedAction: "सुझाया गया कदम",
+        lastUpdated: "अंतिम अपडेट",
         weighBtn: "तौलें",
         weighbridgeConsole: "वेईब्रिज कंसोल",
         grossWeight: "सकल वजन (ग्रॉस)",
@@ -6824,6 +7691,24 @@ const translations = {
         cancelBtn: "रद्द करें"
     },
     Telugu: {
+        weatherNav: "వాతావరణం & ఆరబెట్టే సలహా",
+        weatherTitle: "వాతావరణం & ధాన్యం ఆరబెట్టే సలహా",
+        weatherCardSubtitle: "మండీ ప్రత్యక్ష వాతావరణం మరియు ధాన్యం ఎండబెట్టే సూచనలు",
+        advisorySuitable: "అనుకూలం",
+        advisoryCaution: "జాగ్రత్త అవసరం",
+        advisoryNotRecommended: "సిఫార్సు చేయబడలేదు",
+        advisoryUnavailable: "వాతావరణ డేటా అందుబాటులో లేదు",
+        suggestedDryingWindow: "సూచించిన ఆరబెట్టే సమయం",
+        storageRiskWarning: "ధాన్యం నిల్వ హెచ్చరిక",
+        cropGuidanceTitle: "పంట నిల్వ మార్గదర్శకాలు",
+        viewDryingAdvisoryBtn: "24 గంటల సలహా చూడండి",
+        refreshWeather: "వాతావరణం నవీకరించండి",
+        rainChance: "వర్షం అవకాశం",
+        weatherHumidity: "తేమ శాతం",
+        weatherWind: "గాలి వేగం",
+        whyExplanation: "ఈ సలహా ఎందుకు?",
+        suggestedAction: "సూచించిన చర్య",
+        lastUpdated: "చివరిగా నవీకరించబడింది",
         weighBtn: "తూకం",
         weighbridgeConsole: "వేబ్రిడ్జి కన్సోల్",
         grossWeight: "స్థూల బరువు",
@@ -7132,6 +8017,24 @@ const translations = {
         cancelBtn: "రద్దు చేయండి"
     },
     Tamil: {
+        weatherNav: "வானிலை & உலர்த்தும் ஆலோசனை",
+        weatherTitle: "வானிலை & தானிய உலர்த்தும் ஆலோசனை",
+        weatherCardSubtitle: "மண்டி நேரடி வானிலை & தானிய உலர்த்தும் சாத்தியக்கூறு",
+        advisorySuitable: "ஏற்றது",
+        advisoryCaution: "எச்சரிக்கை",
+        advisoryNotRecommended: "பரிந்துரைக்கப்படவில்லை",
+        advisoryUnavailable: "வானிலை தகவல் கிடைக்கவில்லை",
+        suggestedDryingWindow: "பரிந்துரைக்கப்பட்ட உலர்த்தும் நேரம்",
+        storageRiskWarning: "தானிய சேமிப்பு எச்சரிக்கை",
+        cropGuidanceTitle: "பயிர் சேமிப்பு வழிகாட்டுதல்",
+        viewDryingAdvisoryBtn: "24 மணி நேர ஆலோசனையைப் பார்க்கவும்",
+        refreshWeather: "வானிலையை புதுப்பிக்கவும்",
+        rainChance: "மழை வாய்ப்பு",
+        weatherHumidity: "ஈரப்பதம்",
+        weatherWind: "காற்றின் வேகம்",
+        whyExplanation: "இந்த ஆலோசனை ஏன்?",
+        suggestedAction: "பரிந்துரைக்கப்பட்ட செயல்பாடு",
+        lastUpdated: "கடைசியாக புதுப்பிக்கப்பட்டது",
         weighBtn: "எடை",
         weighbridgeConsole: "எடை மேடை பணியகம்",
         grossWeight: "மொத்த எடை",
@@ -7439,6 +8342,24 @@ const translations = {
         cancelBtn: "ரத்து செய்"
     },
     Kannada: {
+        weatherNav: "ಹವಾಮಾನ & ಒಣಗಿಸುವ ಸಲಹೆ",
+        weatherTitle: "ಹವಾಮಾನ & ಧಾನ್ಯ ಒಣಗಿಸುವ ಸಲಹೆ",
+        weatherCardSubtitle: "ಮಂಡಿ ನೇರ ಹವಾಮಾನ ಮತ್ತು ಧಾನ್ಯ ಒಣಗಿಸುವ ಸೌಲಭ್ಯ",
+        advisorySuitable: "ಸೂಕ್ತ",
+        advisoryCaution: "ಎಚ್ಚರಿಕೆ",
+        advisoryNotRecommended: "ಶಿಫಾರಸು ಮಾಡಲಾಗಿಲ್ಲ",
+        advisoryUnavailable: "ಹವಾಮಾನ ಡೇಟಾ ಲಭ್ಯವಿಲ್ಲ",
+        suggestedDryingWindow: "ಸೂಚಿಸಲಾದ ಒಣಗಿಸುವ ಸಮಯ",
+        storageRiskWarning: "ಧಾನ್ಯ ಸಂಗ್ರಹಣೆ ಎಚ್ಚರಿಕೆ",
+        cropGuidanceTitle: "ಬೆಳೆ ಸಂಗ್ರಹಣೆ ಮಾರ್ಗದರ್ಶನ",
+        viewDryingAdvisoryBtn: "24 ಗಂಟೆಗಳ ಸಲಹೆ ನೋಡಿ",
+        refreshWeather: "ಹವಾಮಾನ ರಿಫ್ರೆಶ್ ಮಾಡಿ",
+        rainChance: "ಮಳೆಯ ಸಾಧ್ಯತೆ",
+        weatherHumidity: "ತೇವಾಂಶ",
+        weatherWind: "ಗಾಳಿಯ ವೇಗ",
+        whyExplanation: "ಈ ಸಲಹೆಯ ಕಾರಣವೇನು?",
+        suggestedAction: "ಶಿಫಾರಸು ಮಾಡಿದ ಕ್ರಮ",
+        lastUpdated: "ಕೊನೆಯ ನವೀಕರಣ",
         weighBtn: "ತೂಕ",
         weighbridgeConsole: "ತೂಕದ ಸೇತುವೆ ಕನ್ಸೋಲ್",
         grossWeight: "ಒಟ್ಟು ತೂಕ",
@@ -7746,6 +8667,24 @@ const translations = {
         cancelBtn: "ರದ್ದುಮಾಡಿ"
     },
     Malayalam: {
+        weatherNav: "കാലാവസ്ഥ & ഉണക്കൽ ഉപദേശം",
+        weatherTitle: "കാലാവസ്ഥയും ധാന്യ ഉണക്കൽ ഉപദേശവും",
+        weatherCardSubtitle: "മണ്ടി തത്സമയ കാലാവസ്ഥയും ധാന്യ ഉണക്കൽ സാധ്യതയും",
+        advisorySuitable: "അനുയോജ്യം",
+        advisoryCaution: "ജാഗ്രത",
+        advisoryNotRecommended: "ശുപാർശ ചെയ്യുന്നില്ല",
+        advisoryUnavailable: "കാലാവസ്ഥ വിവരങ്ങൾ ലഭ്യമല്ല",
+        suggestedDryingWindow: "ശുപാർശ ചെയ്ത ഉണക്കൽ സമയം",
+        storageRiskWarning: "ധാന്യ സംഭരണ മുന്നറിയിപ്പ്",
+        cropGuidanceTitle: "ധാന്യ സംഭരണ മാർഗ്ഗനിർദ്ദേശങ്ങൾ",
+        viewDryingAdvisoryBtn: "24 മണിക്കൂർ ഉപദേശം കാണുക",
+        refreshWeather: "കാലാവസ്ഥ പുതുക്കുക",
+        rainChance: "മഴ സാധ്യത",
+        weatherHumidity: "ഈർപ്പം",
+        weatherWind: "കാറ്റിന്റെ വേഗത",
+        whyExplanation: "ഈ ഉപദേശത്തിന്റെ കാരണം?",
+        suggestedAction: "ശുപാർശ ചെയ്യുന്ന പ്രവർത്തനം",
+        lastUpdated: "അവസാനം പുതുക്കിയത്",
         weighBtn: "തൂക്കം",
         weighbridgeConsole: "വെയ്ബ്രിഡ്ജ് കൺസോൾ",
         grossWeight: "ആകെ ഭാരം",
@@ -8712,6 +9651,10 @@ function updateDashboardAfterBooking() {
             }
         }
         if (tlSlot) tlSlot.textContent = `${formatBookingDate(currentBooking.date)} · ${currentBooking.time}`;
+    }
+
+    if (typeof renderFarmerWeatherCard === "function") {
+        renderFarmerWeatherCard();
     }
 }
 
@@ -11793,6 +12736,12 @@ document.addEventListener("DOMContentLoaded", function() {
     KisanNotifications.init();
     renderRoleBasedView();
     updateDashboardAfterBooking();
+    if (typeof renderFarmerWeatherCard === "function") renderFarmerWeatherCard();
+    if (typeof KisanWeather !== "undefined" && typeof KisanWeather.fetchLiveWeather === "function") {
+        KisanWeather.fetchLiveWeather().then(() => {
+            if (typeof renderFarmerWeatherCard === "function") renderFarmerWeatherCard();
+        }).catch(() => {});
+    }
     initKisanSyncListeners();
     if (typeof KisanAnalytics !== "undefined") KisanAnalytics.initListeners();
     if (typeof KisanYardMap !== "undefined") KisanYardMap.initListeners();
