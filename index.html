@@ -36,7 +36,7 @@
 
         <aside class="sidebar">
 
-            <!-- Logo -->
+            <!-- Logo & Mobile Close -->
             <div class="logo-area" style="cursor: pointer;" onclick="window.location.reload()">
                 <div class="logo-icon">
                     <i class="fa-solid fa-wheat-awn" id="logo-main-icon"></i>
@@ -46,6 +46,10 @@
                     <h2>KisanSetu</h2>
                     <span id="logo-subtitle" data-language-key="farmerProcurement">Farmer Procurement</span>
                 </div>
+
+                <button type="button" class="sidebar-close-btn" id="sidebar-close-btn" onclick="event.stopPropagation(); closeMobileMenu();" title="Close Navigation" aria-label="Close navigation">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
             <!-- Navigation -->
@@ -256,8 +260,8 @@
 
                 <div class="topbar-actions">
 
-                    <!-- Role Indicator Badge (Set on Login) -->
-                    <div class="role-badge-display" id="topbar-role-badge">
+                    <!-- Role Indicator Badge (Set on Login / Click to Switch Role) -->
+                    <div class="role-badge-display" id="topbar-role-badge" onclick="openProfile('role')" title="Click to switch Demo Role (Evaluator Testing)" style="cursor: pointer;">
                         <span class="role-badge-tag farmer"><i class="fa-solid fa-wheat-awn"></i> Farmer Portal</span>
                     </div>
 
@@ -1098,6 +1102,30 @@
         </div>
         <div class="kisan-vani-pulse-ring"></div>
     </div>
+
+    <!-- Mobile Bottom Navigation Bar (Farmer Quick Actions) -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Mobile Navigation">
+        <button type="button" class="mobile-nav-btn active" id="mob-nav-home" onclick="handleMobileNav('home')" aria-label="Dashboard Home">
+            <i class="fa-solid fa-house"></i>
+            <span data-language-key="dashboard">Home</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mob-nav-book" onclick="handleMobileNav('book')" aria-label="Book Slot">
+            <i class="fa-solid fa-calendar-plus"></i>
+            <span data-language-key="book">Book</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mob-nav-qr" onclick="handleMobileNav('qr')" aria-label="My QR Gate Pass">
+            <i class="fa-solid fa-qrcode"></i>
+            <span data-language-key="myQR">My QR</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mob-nav-queue" onclick="handleMobileNav('queue')" aria-label="Queue Status">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span data-language-key="status">Status</span>
+        </button>
+        <button type="button" class="mobile-nav-btn vani-btn" id="mob-nav-vani" onclick="handleMobileNav('vani')" aria-label="Kisan Vani AI Voice Assistant">
+            <i class="fa-solid fa-microphone-lines"></i>
+            <span>Vani AI</span>
+        </button>
+    </nav>
 
     <!-- JavaScript -->
     <script src="script.js"></script>

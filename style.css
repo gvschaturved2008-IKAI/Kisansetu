@@ -11071,7 +11071,7 @@ body.dark-mode .zone-icon-box {
 
 @media (max-width: 640px) {
     .fw-metrics-grid {
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr;
     }
     .crop-guide-grid {
         grid-template-columns: 1fr;
@@ -11081,3 +11081,480 @@ body.dark-mode .zone-icon-box {
         align-items: flex-start;
     }
 }
+
+/* =========================================================
+   TASK 11: AUTHENTICATION, ROLE SWITCH & SESSION GUARD
+========================================================= */
+
+.role-badge-display {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+.role-badge-display:hover {
+    transform: translateY(-1px) scale(1.02);
+}
+
+.role-badge-display:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.role-badge-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.role-badge-tag.farmer {
+    background: #e8f5ed;
+    color: #1b5e3b;
+    border: 1px solid #bde5cb;
+}
+
+.role-badge-tag.officer {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+.settings-tab-btn.role-tab-btn:hover {
+    background: #fde68a !important;
+    color: #78350f !important;
+}
+
+.guest-link {
+    color: var(--text-light);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.guest-link:hover {
+    color: var(--green);
+    transform: translateX(3px);
+}
+
+/* =========================================================
+   MOBILE-FIRST UX OPTIMIZATIONS (FARMER PRIORITIZATION)
+========================================================= */
+
+/* 1. Mobile Bottom Navigation Bar */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: #ffffff;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.07);
+    z-index: 9990;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.mobile-nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-light);
+    font-size: 11px;
+    font-weight: 600;
+    gap: 3px;
+    min-width: 52px;
+    min-height: 48px;
+    cursor: pointer;
+    transition: color 0.2s ease, transform 0.15s ease;
+    padding: 6px 4px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-nav-btn i {
+    font-size: 18px;
+    transition: transform 0.2s ease;
+}
+
+.mobile-nav-btn:active {
+    transform: scale(0.92);
+}
+
+.mobile-nav-btn.active {
+    color: var(--green);
+}
+
+.mobile-nav-btn.active i {
+    transform: scale(1.12);
+}
+
+.mobile-nav-btn.vani-btn {
+    color: #059669;
+}
+
+/* 2. Sidebar Mobile Close Button */
+.sidebar-close-btn {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--green-light);
+    color: var(--green-dark);
+    border: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    margin-left: auto;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* 3. Typography Fixes (Micro-text legibility) */
+.history-date span {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+}
+.history-main strong {
+    font-size: 13px !important;
+}
+.history-main span,
+.history-quantity span {
+    font-size: 11.5px !important;
+}
+.history-quantity strong {
+    font-size: 13px !important;
+}
+.history-status {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+}
+.notification-item strong {
+    font-size: 13.5px !important;
+}
+.notification-item p {
+    font-size: 12.5px !important;
+}
+.notification-item small {
+    font-size: 11px !important;
+}
+
+/* 4. Yard Map & SVG Scaling */
+#mandi-yard-svg {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 420px !important;
+    display: block;
+}
+
+.yard-filter-ribbon,
+.yard-map-filters {
+    display: flex !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 8px !important;
+    padding-bottom: 6px !important;
+    scrollbar-width: none;
+}
+.yard-filter-ribbon::-webkit-scrollbar,
+.yard-map-filters::-webkit-scrollbar {
+    display: none;
+}
+
+/* 5. Responsive Breakpoint ≤ 768px (Mobile & Small Tablets) */
+@media (max-width: 768px) {
+    .mobile-bottom-nav {
+        display: flex;
+    }
+
+    .dashboard-content {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    .footer {
+        padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    .kisan-vani-fab {
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+        right: 16px !important;
+    }
+
+    .sidebar.mobile-open .sidebar-close-btn {
+        display: flex;
+    }
+
+    .logo-area {
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    /* Interactive touch targets >= 44px */
+    .icon-button,
+    .ks-modal-close,
+    .directions-button,
+    .more-button {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+
+    .welcome-banner {
+        flex-direction: column !important;
+        padding: 20px 18px !important;
+        gap: 16px !important;
+    }
+
+    .welcome-illustration {
+        display: none !important;
+    }
+
+    .welcome-buttons {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 10px !important;
+        width: 100% !important;
+    }
+
+    .welcome-buttons button {
+        width: 100% !important;
+        padding: 12px 10px !important;
+        font-size: 12.5px !important;
+        min-height: 44px !important;
+        justify-content: center !important;
+    }
+
+    /* Modals become bottom-sheets with safe areas */
+    .ks-modal-overlay {
+        padding: 0 !important;
+        align-items: flex-end !important;
+    }
+
+    .ks-modal {
+        width: 100% !important;
+        max-height: 90vh !important;
+        border-radius: 20px 20px 0 0 !important;
+        margin: 0 !important;
+        padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+
+    .ks-modal-body {
+        padding: 16px 18px !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    /* Form controls iOS friendly font size */
+    .custom-select,
+    input[type="text"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    select {
+        font-size: 15px !important;
+        min-height: 46px !important;
+    }
+
+    /* Login Page Responsive Collapse */
+    .login-container {
+        flex-direction: column !important;
+        padding: 12px !important;
+        min-height: auto !important;
+    }
+
+    .login-hero {
+        padding: 22px 18px !important;
+        min-height: auto !important;
+        border-radius: 16px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .hero-highlights,
+    .hero-stats {
+        display: none !important;
+    }
+
+    .hero-brand h1 {
+        font-size: 22px !important;
+    }
+
+    .login-card-wrapper {
+        padding: 0 !important;
+        width: 100% !important;
+    }
+
+    .login-card {
+        padding: 20px 16px !important;
+        border-radius: 16px !important;
+    }
+
+    .sms-phone-card {
+        max-width: 92vw !important;
+        margin: 10px !important;
+    }
+}
+
+/* 6. Responsive Breakpoint ≤ 480px (Common Smartphones) */
+@media (max-width: 480px) {
+    .topbar {
+        padding: 8px 12px !important;
+        gap: 8px !important;
+    }
+
+    .page-heading h1 {
+        font-size: 16px !important;
+    }
+
+    .page-heading p {
+        display: none !important;
+    }
+
+    .topbar-actions {
+        gap: 6px !important;
+    }
+
+    .user-profile .user-info {
+        display: none !important;
+    }
+
+    .user-profile .profile-arrow {
+        display: none !important;
+    }
+
+    .user-profile {
+        padding: 4px !important;
+        border-radius: 50% !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
+        justify-content: center !important;
+    }
+
+    .live-sync-indicator .sync-text {
+        display: none !important;
+    }
+
+    .live-sync-indicator {
+        padding: 6px 8px !important;
+    }
+
+    .language-btn span {
+        display: none !important;
+    }
+
+    .language-btn {
+        padding: 8px 10px !important;
+        min-height: 40px !important;
+    }
+
+    .role-badge-tag {
+        font-size: 10.5px !important;
+        padding: 4px 8px !important;
+    }
+
+    .welcome-buttons {
+        grid-template-columns: 1fr !important;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+
+    .slot-buttons,
+    .slot-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+
+    .slot-pill {
+        min-height: 46px !important;
+        padding: 10px 8px !important;
+        font-size: 12.5px !important;
+        text-align: center !important;
+        justify-content: center !important;
+        word-break: break-word !important;
+    }
+
+    .congestion-score-card,
+    .recommendation-banner {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+
+    .quality-camera-container,
+    #grain-camera-stream {
+        max-height: 240px !important;
+        width: 100% !important;
+        object-fit: cover !important;
+    }
+
+    .wb-gross-value {
+        font-size: 28px !important;
+    }
+
+    .wb-receipt-card {
+        width: 100% !important;
+        padding: 14px !important;
+    }
+
+    .fw-metrics-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+
+    .drying-timeline-container,
+    .hourly-forecast-strip {
+        display: flex !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        gap: 8px !important;
+        padding-bottom: 6px !important;
+    }
+}
+
+/* 7. Responsive Breakpoint ≤ 360px (Small Phones e.g. iPhone SE / JioPhone) */
+@media (max-width: 360px) {
+    .topbar-actions {
+        gap: 4px !important;
+    }
+
+    .icon-button {
+        width: 38px !important;
+        height: 38px !important;
+    }
+
+    .slot-buttons,
+    .slot-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .mobile-nav-btn {
+        min-width: 44px !important;
+        font-size: 10px !important;
+    }
+
+    .mobile-nav-btn i {
+        font-size: 16px !important;
+    }
+}
+

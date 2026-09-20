@@ -7358,7 +7358,13 @@ const translations = {
         highContrastMode: "High Contrast / Dark Mode",
         soundAlerts: "Audio Chime on Turn Call",
         profileUpdatedSuccess: "Farmer profile & settings updated successfully!",
-        // Logout
+        // Role Switch & Logout
+        tabRoleSwitch: "Demo Role Switch",
+        demoRoleSwitchDesc: "Hackathon Evaluator Quick Switch: Toggle between Farmer and Mandi Officer perspectives to test all 10 unified modules.",
+        switchToFarmer: "Switch to Farmer (Ramesh Kumar)",
+        switchToOfficer: "Switch to Mandi Officer (S. Sharma)",
+        activeBadge: "CURRENT ACTIVE",
+        logout: "Logout",
         logoutConfirmTitle: "Confirm Logout",
         logoutConfirmMsg: "Are you sure you want to log out of KisanSetu Farmer Portal?",
         confirmLogoutBtn: "Yes, Log Out",
@@ -7685,6 +7691,12 @@ const translations = {
         highContrastMode: "डार्क / हाई कंट्रास्ट मोड",
         soundAlerts: "बारी आने पर ध्वनि अलर्ट",
         profileUpdatedSuccess: "किसान प्रोफ़ाइल और सेटिंग्स सफलतापूर्वक सहेजी गईं!",
+        tabRoleSwitch: "डेमो रोल बदलें",
+        demoRoleSwitchDesc: "मूल्यांकनकर्ता त्वरित स्विच: किसान और मंडी अधिकारी के बीच स्विच करें।",
+        switchToFarmer: "किसान मोड में बदलें (रमेश कुमार)",
+        switchToOfficer: "मंडी अधिकारी मोड में बदलें (एस. शर्मा)",
+        activeBadge: "वर्तमान सक्रिय",
+        logout: "लॉग आउट",
         logoutConfirmTitle: "लॉग आउट की पुष्टि",
         logoutConfirmMsg: "क्या आप वास्तव में किसान सेतु से लॉग आउट करना चाहते हैं?",
         confirmLogoutBtn: "हाँ, लॉग आउट करें",
@@ -8011,6 +8023,12 @@ const translations = {
         highContrastMode: "డార్క్ / హై కాంట్రాస్ట్ మోడ్",
         soundAlerts: "వంతు వచ్చినప్పుడు సౌండ్ అలర్ట్",
         profileUpdatedSuccess: "రైతు ప్రొఫైల్ మరియు సెట్టింగ్‌లు విజయవంతంగా నవీకరించబడ్డాయి!",
+        tabRoleSwitch: "డెమో పాత్ర మార్చండి",
+        demoRoleSwitchDesc: "మూల్యాంకనం కోసం రైతు మరియు మండి అధికారి వీక్షణల మధ్య త్వరగా మారండి.",
+        switchToFarmer: "రైతు మోడ్‌కి మారండి (రమేష్ కుమార్)",
+        switchToOfficer: "మండి అధికారి మోడ్‌కి మారండి (ఎస్. శర్మ)",
+        activeBadge: "ప్రస్తుతం యాక్టివ్",
+        logout: "లాగ్ అవుట్",
         logoutConfirmTitle: "లాగ్ అవుట్ నిర్ధారణ",
         logoutConfirmMsg: "మీరు ఖచ్చితంగా కిసాన్ సేతు పోర్టల్ నుండి లాగ్ అవుట్ అవ్వాలనుకుంటున్నారా?",
         confirmLogoutBtn: "అవును, లాగ్ అవుట్ అవ్వండి",
@@ -8336,6 +8354,12 @@ const translations = {
         highContrastMode: "டார்க் மோட்",
         soundAlerts: "ஒலி எச்சரிக்கை",
         profileUpdatedSuccess: "சுயவிவரம் வெற்றிகரமாக புதுப்பிக்கப்பட்டது!",
+        tabRoleSwitch: "டெமோ பங்கு மாற்றம்",
+        demoRoleSwitchDesc: "விவசாயி மற்றும் மண்டி அதிகாரி பார்வைகளுக்கு இடையே மாறவும்.",
+        switchToFarmer: "விவசாயி முறைக்கு மாறவும் (ரமேஷ் குமார்)",
+        switchToOfficer: "மண்டி அதிகாரி முறைக்கு மாறவும் (எஸ். சர்மா)",
+        activeBadge: "செயலில் உள்ளது",
+        logout: "வெளியேறு",
         logoutConfirmTitle: "வெளியேறுவதை உறுதிப்படுத்தவும்",
         logoutConfirmMsg: "நிச்சயமாக கிசான் சேதுவிலிருந்து வெளியேற விரும்புகிறீர்களா?",
         confirmLogoutBtn: "ஆம், வெளியேறுக",
@@ -8661,6 +8685,12 @@ const translations = {
         highContrastMode: "ಡಾರ್ಕ್ ಮೋಡ್",
         soundAlerts: "ಧ್ವನಿ ಎಚ್ಚರಿಕೆ",
         profileUpdatedSuccess: "ಪ್ರೊಫೈಲ್ ಯಶಸ್ವಿಯಾಗಿ ನವೀಕರಿಸಲಾಗಿದೆ!",
+        tabRoleSwitch: "ಡೆಮೊ ಪಾತ್ರ ಬದಲಿಸಿ",
+        demoRoleSwitchDesc: "ರೈತ ಮತ್ತು ಮಂಡಿ ಅಧಿಕಾರಿ ವೀಕ್ಷಣೆಗಳ ನಡುವೆ ಬದಲಾಯಿಸಿ.",
+        switchToFarmer: "ರೈತ ಮೋಡ್‌ಗೆ ಬದಲಿಸಿ (ರಮೇಶ್ ಕುಮಾರ್)",
+        switchToOfficer: "ಮಂಡಿ ಅಧಿಕಾರಿ ಮೋಡ್‌ಗೆ ಬದಲಿಸಿ (ಎಸ್. ಶರ್ಮಾ)",
+        activeBadge: "ಪ್ರಸ್ತುತ ಸಕ್ರಿಯ",
+        logout: "ಲಾಗ್ ಔಟ್",
         logoutConfirmTitle: "ಲಾಗ್ ಔಟ್ ದೃಢೀಕರಣ",
         logoutConfirmMsg: "ಖಚಿತವಾಗಿ ಕಿಸಾನ್ ಸೇತು ಪೋರ್ಟಲ್‌ನಿಂದ ಹೊರಹೋಗಲು ಬಯಸುವಿರಾ?",
         confirmLogoutBtn: "ಹೌದು, ಲಾಗ್ ಔಟ್ ಮಾಡಿ",
@@ -8987,6 +9017,12 @@ const translations = {
         highContrastMode: "ഡാർക്ക് മോഡ്",
         soundAlerts: "ശബ്ദ അറിയിപ്പ്",
         profileUpdatedSuccess: "പ്രൊഫൈൽ വിജയകരമായി അപ്‌ഡേറ്റുചെയ്‌തു!",
+        tabRoleSwitch: "ഡെമോ റോൾ മാറ്റുക",
+        demoRoleSwitchDesc: "കർഷകൻ, മണ്ടി ഓഫീസർ കാഴ്ചകൾക്കിടയിൽ മാറുക.",
+        switchToFarmer: "കർഷകനിലേക്ക് മാറുക (രമേഷ് കുമാർ)",
+        switchToOfficer: "മണ്ടി ഓഫീസറിലേക്ക് മാറുക (എസ്. ശർമ്മ)",
+        activeBadge: "സജീവമാണ്",
+        logout: "ലോഗ് ഔട്ട്",
         logoutConfirmTitle: "ലോഗ് ഔട്ട് സ്ഥിരീകരിക്കുക",
         logoutConfirmMsg: "കിസാൻ സേതുവിൽ നിന്ന് ലോഗ് ഔട്ട് ചെയ്യാൻ ആഗ്രഹിക്കുന്നുണ്ടോ?",
         confirmLogoutBtn: "അതെ, ലോഗ് ഔട്ട് ചെയ്യുക",
@@ -9036,6 +9072,22 @@ function getDefaultUser() {
     };
 }
 
+function checkSessionAuth() {
+    if (typeof window !== "undefined" && window.location && window.location.pathname) {
+        const path = window.location.pathname.toLowerCase();
+        // If we are currently on login.html or in a non-index auth page, allow access
+        if (path.endsWith("login.html") || path.endsWith("login")) {
+            return true;
+        }
+        const token = localStorage.getItem("kisanSetuAuthToken");
+        if (!token) {
+            window.location.href = "login.html";
+            return false;
+        }
+    }
+    return true;
+}
+
 function getCurrentUser() {
     const saved = localStorage.getItem("kisanSetuUser");
     if (saved) {
@@ -9063,19 +9115,24 @@ function switchDemoRole(targetRole) {
             role: "officer",
             name: "Officer S. Sharma",
             farmerId: "MANDI-OFF-902",
-            mandi: "AP State Procurement Centre (Yard 1)"
+            mandi: "AP State Procurement Centre (Yard 1)",
+            isLoggedIn: true
         };
+        localStorage.setItem("kisanSetuAuthToken", "demo-officer-token");
     } else {
         user = {
             ...user,
             role: "farmer",
             name: "Ramesh Kumar",
             farmerId: "KS102458",
-            mandi: "AP State Procurement Centre"
+            mandi: "AP State Procurement Centre",
+            isLoggedIn: true
         };
+        localStorage.setItem("kisanSetuAuthToken", "demo-token-ks102458");
     }
     saveCurrentUser(user);
     renderDashboardForRole();
+    if (typeof closeModal === "function") closeModal();
     showToast(`Switched to ${targetRole === "officer" ? "🏛️ Mandi Officer / Admin Portal" : "🌾 Farmer Portal"}`);
 }
 
@@ -10712,8 +10769,9 @@ function handleGrievanceSubmit(e) {
    13. FARMER PROFILE & DASHBOARD SETTINGS MODAL
 ========================================================= */
 
-function openProfile() {
+function openProfile(defaultTab) {
     const user = getCurrentUser();
+    const isOfficer = (user.role === "officer" || user.role === "admin");
 
     const content = `
         <!-- Tabs -->
@@ -10730,6 +10788,9 @@ function openProfile() {
             <button type="button" class="settings-tab-btn" id="stTabDisplay" onclick="switchSettingsTab('display')">
                 <i class="fa-solid fa-universal-access"></i> <span>${t("tabDisplay")}</span>
             </button>
+            <button type="button" class="settings-tab-btn role-tab-btn" id="stTabRole" onclick="switchSettingsTab('role')" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">
+                <i class="fa-solid fa-users-gear"></i> <span>${t("tabRoleSwitch") || "Demo Role Switch"}</span>
+            </button>
         </div>
 
         <!-- TAB 1: PERSONAL PROFILE -->
@@ -10738,33 +10799,33 @@ function openProfile() {
                 <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <div class="form-group">
                         <label>${t("farmerFullName")} *</label>
-                        <input type="text" id="setFarmerName" value="${user.name}" class="custom-select" required>
+                        <input type="text" id="setFarmerName" value="${user.name || ''}" class="custom-select" required>
                     </div>
                     <div class="form-group">
                         <label>${t("mobileNoLabel")} *</label>
-                        <input type="tel" id="setFarmerMobile" value="${user.mobile}" class="custom-select" required>
+                        <input type="tel" id="setFarmerMobile" value="${user.mobile || ''}" class="custom-select" required>
                     </div>
                 </div>
 
                 <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <div class="form-group">
                         <label>${t("aadhaarLabel")}</label>
-                        <input type="text" id="setFarmerAadhaar" value="${user.aadhaar}" class="custom-select" readonly style="background:#f4f6f4;">
+                        <input type="text" id="setFarmerAadhaar" value="${user.aadhaar || 'XXXX-XXXX-8921'}" class="custom-select" readonly style="background:#f4f6f4;">
                     </div>
                     <div class="form-group">
                         <label>${t("landSizeLabel")}</label>
-                        <input type="text" id="setFarmerLand" value="${user.land}" class="custom-select" required>
+                        <input type="text" id="setFarmerLand" value="${user.land || '5.0 Acres'}" class="custom-select" required>
                     </div>
                 </div>
 
                 <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <div class="form-group">
                         <label>${t("villageLabel")}</label>
-                        <input type="text" id="setFarmerVillage" value="${user.village}" class="custom-select" required>
+                        <input type="text" id="setFarmerVillage" value="${user.village || 'Tenali Rural'}" class="custom-select" required>
                     </div>
                     <div class="form-group">
                         <label>${t("districtLabel")}</label>
-                        <input type="text" id="setFarmerDistrict" value="${user.district}, ${user.state}" class="custom-select" required>
+                        <input type="text" id="setFarmerDistrict" value="${user.district || 'Guntur'}, ${user.state || 'Andhra Pradesh'}" class="custom-select" required>
                     </div>
                 </div>
 
@@ -10780,20 +10841,20 @@ function openProfile() {
             <form onsubmit="handleSaveBank(event)">
                 <div class="form-group">
                     <label>${t("accountHolder")} *</label>
-                    <input type="text" id="setBankHolder" value="${user.name}" class="custom-select" required>
+                    <input type="text" id="setBankHolder" value="${user.name || ''}" class="custom-select" required>
                 </div>
                 <div class="form-group">
                     <label>Bank Name *</label>
-                    <input type="text" id="setBankName" value="${user.bankName}" class="custom-select" required>
+                    <input type="text" id="setBankName" value="${user.bankName || 'State Bank of India'}" class="custom-select" required>
                 </div>
                 <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
                     <div class="form-group">
                         <label>${t("accountNo")} *</label>
-                        <input type="text" id="setBankAcc" value="${user.accountNo}" class="custom-select" required>
+                        <input type="text" id="setBankAcc" value="${user.accountNo || '•••• •••• 4589'}" class="custom-select" required>
                     </div>
                     <div class="form-group">
-                        <label>${t("ifscLabel")} *</label>
-                        <input type="text" id="setBankIfsc" value="${user.ifsc}" class="custom-select" required>
+                        <label>${t("ifscLabel") || 'IFSC Code'} *</label>
+                        <input type="text" id="setBankIfsc" value="${user.ifsc || 'SBIN0001234'}" class="custom-select" required>
                     </div>
                 </div>
                 <div style="background:#e8f5ed; border:1px solid #bde5cb; padding:12px; border-radius:12px; margin-bottom:16px; display:flex; align-items:center; gap:8px; font-size:12.5px; color:#174d32;">
@@ -10882,13 +10943,66 @@ function openProfile() {
                 </div>
             </div>
         </div>
+
+        <!-- TAB 5: DEMO ROLE SWITCH (EVALUATOR PERSPECTIVE) -->
+        <div id="settingsSectionRole" style="display:none;">
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:12px; margin-bottom:14px; font-size:12.5px; color:#92400e;">
+                <i class="fa-solid fa-bolt" style="margin-right:6px;"></i>
+                <strong>${t("demoRoleSwitchDesc") || "Demo Role Switch: Quickly switch views for Hackathon Evaluator testing."}</strong>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                <div style="border:2px solid ${!isOfficer ? '#26734d' : '#e2eae4'}; background:${!isOfficer ? '#f0fdf4' : '#fff'}; border-radius:12px; padding:14px; cursor:pointer;" onclick="switchDemoRole('farmer')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:20px;">🌾</span>
+                        ${!isOfficer ? `<span class="badge" style="background:#26734d; color:#fff; font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700;">${t("activeBadge") || "ACTIVE"}</span>` : ''}
+                    </div>
+                    <strong style="color:#174d32; font-size:14px; display:block;">Ramesh Kumar</strong>
+                    <span style="font-size:11.5px; color:#5c6c63; display:block;">Role: Registered Farmer</span>
+                    <span style="font-size:11px; color:#788b80; display:block; margin-top:4px;">ID: KS102458 • Guntur, AP</span>
+                    <button type="button" class="submit-auth-btn" style="margin-top:10px; padding:8px 12px; font-size:12px; width:100%; ${!isOfficer ? 'opacity:0.65; pointer-events:none;' : ''}">
+                        ${!isOfficer ? (t("activeBadge") || 'Current Active') : (t("switchToFarmer") || 'Switch to Farmer')}
+                    </button>
+                </div>
+
+                <div style="border:2px solid ${isOfficer ? '#0284c7' : '#e2eae4'}; background:${isOfficer ? '#f0f9ff' : '#fff'}; border-radius:12px; padding:14px; cursor:pointer;" onclick="switchDemoRole('officer')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:20px;">🏛️</span>
+                        ${isOfficer ? `<span class="badge" style="background:#0284c7; color:#fff; font-size:10px; padding:2px 8px; border-radius:10px; font-weight:700;">${t("activeBadge") || "ACTIVE"}</span>` : ''}
+                    </div>
+                    <strong style="color:#0369a1; font-size:14px; display:block;">Officer S. Sharma</strong>
+                    <span style="font-size:11.5px; color:#5c6c63; display:block;">Role: Mandi Incharge & Admin</span>
+                    <span style="font-size:11px; color:#788b80; display:block; margin-top:4px;">ID: MANDI-OFF-902 • Yard 1</span>
+                    <button type="button" class="submit-auth-btn" style="margin-top:10px; padding:8px 12px; font-size:12px; width:100%; background:#0284c7; ${isOfficer ? 'opacity:0.65; pointer-events:none;' : ''}">
+                        ${isOfficer ? (t("activeBadge") || 'Current Active') : (t("switchToOfficer") || 'Switch to Officer')}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PROFILE MODAL FOOTER WITH LOGOUT ACTION -->
+        <div style="border-top:1px solid #eef2ef; margin-top:18px; padding-top:14px; display:flex; justify-content:space-between; align-items:center;">
+            <button type="button" class="text-btn" style="color:#dc2626; font-weight:700; font-size:13px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="closeModal(); logout();">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>${t("logout") || "Logout"}</span>
+            </button>
+            <button type="button" class="submit-auth-btn" style="background:#eef2ef; color:#444; width:auto; padding:8px 18px;" onclick="closeModal()">
+                <span>${t("cancelBtn") || "Close"}</span>
+            </button>
+        </div>
     `;
 
     openModal(t("settingsTitle"), content);
+
+    if (defaultTab) {
+        setTimeout(() => {
+            switchSettingsTab(defaultTab);
+        }, 50);
+    }
 }
 
 function switchSettingsTab(tab) {
-    const tabs = ["personal", "bank", "pref", "display"];
+    const tabs = ["personal", "bank", "pref", "display", "role"];
     tabs.forEach(tName => {
         const btn = document.getElementById(`stTab${tName.charAt(0).toUpperCase() + tName.slice(1)}`);
         const section = document.getElementById(`settingsSection${tName.charAt(0).toUpperCase() + tName.slice(1)}`);
@@ -11031,6 +11145,11 @@ function logout() {
 
 function executeLogout() {
     localStorage.removeItem("kisanSetuAuthToken");
+    let user = getCurrentUser();
+    if (user) {
+        user.isLoggedIn = false;
+        localStorage.setItem("kisanSetuUser", JSON.stringify(user));
+    }
     closeModal();
     showToast("Logged out successfully. Redirecting to login...");
     setTimeout(() => {
@@ -11066,6 +11185,40 @@ function closeMobileMenu() {
         sidebar.classList.remove("mobile-open");
         if (backdrop) backdrop.classList.remove("show");
         document.body.classList.remove("sidebar-open-locked");
+    }
+}
+
+function handleMobileNav(action) {
+    document.querySelectorAll(".mobile-nav-btn").forEach(btn => btn.classList.remove("active"));
+    const activeBtn = document.getElementById(`mob-nav-${action}`);
+    if (activeBtn) activeBtn.classList.add("active");
+
+    closeMobileMenu();
+
+    switch(action) {
+        case "home":
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            const user = getCurrentUser();
+            if (user && (user.role === "officer" || user.role === "admin")) {
+                if (typeof scrollToOfficerSection === "function") {
+                    scrollToOfficerSection("officer-queue-section");
+                }
+            }
+            break;
+        case "book":
+            if (typeof openBooking === "function") openBooking();
+            break;
+        case "qr":
+            if (typeof openFarmerQRModal === "function") openFarmerQRModal();
+            break;
+        case "queue":
+            if (typeof openTracker === "function") openTracker();
+            break;
+        case "vani":
+            if (typeof openKisanVani === "function") openKisanVani();
+            break;
+        default:
+            break;
     }
 }
 
@@ -12730,6 +12883,9 @@ function initKisanSyncListeners() {
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", function() {
+    if (!checkSessionAuth()) {
+        return;
+    }
     const savedLang = localStorage.getItem("kisanSetuLanguage") || "English";
     syncUserProfileUI();
     applyLanguage(savedLang);

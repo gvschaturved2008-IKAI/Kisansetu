@@ -119,6 +119,19 @@
                     <p id="formSubtitle" data-lang-key="portalSub">Sign in to manage your procurement slots & payment status</p>
                 </div>
 
+                <!-- Active Session Detected Banner -->
+                <div id="activeSessionBanner" style="display:none; background:#ecfdf5; border:1.5px solid #a7f3d0; border-radius:12px; padding:12px 14px; margin-bottom:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                        <div>
+                            <span style="font-size:11px; font-weight:700; color:#065f46; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-circle-check" style="margin-right:4px;"></i>Active Session Detected</span>
+                            <div style="font-size:13px; color:#047857; font-weight:600;">Logged in as <strong id="activeSessionName">Ramesh Kumar</strong> (<span id="activeSessionRole">Farmer</span>)</div>
+                        </div>
+                        <a href="index.html" class="submit-auth-btn" style="padding:6px 14px; font-size:12px; width:auto; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                            <span>Go to Dashboard</span> <i class="fa-solid fa-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+
                 <!-- Tabs: Login vs Register -->
                 <div class="auth-tabs">
                     <button type="button" class="auth-tab active" id="tabSignIn" onclick="switchAuthTab('signin')">
@@ -349,7 +362,7 @@
                 </form>
 
                 <div class="login-footer-links">
-                    <a href="index.html" class="guest-link">
+                    <a href="javascript:void(0)" onclick="demoLogin('farmer')" class="guest-link">
                         <i class="fa-solid fa-arrow-right"></i>
                         <span data-lang-key="guestExplore">Explore Portal in Guest Mode</span>
                     </a>
@@ -878,6 +891,25 @@
         // Initialize on load
         document.addEventListener("DOMContentLoaded", () => {
             applyLoginLanguage(currentLang);
+            
+            // Check for existing active session
+            try {
+                const activeToken = localStorage.getItem("kisanSetuAuthToken");
+                const activeUser = localStorage.getItem("kisanSetuUser");
+                if (activeToken && activeUser) {
+                    const u = JSON.parse(activeUser);
+                    if (u.isLoggedIn !== false) {
+                        const banner = document.getElementById("activeSessionBanner");
+                        if (banner) {
+                            banner.style.display = "block";
+                            const nameEl = document.getElementById("activeSessionName");
+                            const roleEl = document.getElementById("activeSessionRole");
+                            if (nameEl) nameEl.textContent = u.name || (u.role === "officer" ? "Officer S. Sharma" : "Ramesh Kumar");
+                            if (roleEl) roleEl.textContent = (u.role === "officer" ? "Mandi Officer" : "Farmer");
+                        }
+                    }
+                }
+            } catch(e) {}
         });
     </script>
 </body>
